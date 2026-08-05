@@ -9,13 +9,12 @@ import {
   Animated,
   Easing,
 } from "react-native";
-import * as Location from "expo-location";
-
 import Colors from "../../../theme/color";
 import PrimaryButton from "../../../components/ui/PrimaryButton";
 
 import { useAuthStore } from "../../auth/store/auth.store";
 import { useWork } from "../hooks/useWork";
+import { locationTrackingService } from "../../../services/location/LocationTrackingService";
 
 export default function EndWorkScreen() {
   const employee = useAuthStore((state) => state.employee);
@@ -60,17 +59,17 @@ export default function EndWorkScreen() {
         return;
       }
 
-      const permission = await Location.requestForegroundPermissionsAsync();
+      const permissionGranted = await locationTrackingService.requestPermissions();
 
-      if (!permission.granted) {
+      if (!permissionGranted) {
         Alert.alert("Permission Required", "Please allow location access.");
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      const location = await locationTrackingService.getCurrentLocation();
       const result = await endWork({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+        latitude: location.latitude,
+        longitude: location.longitude,
       });
 
       if (result) {

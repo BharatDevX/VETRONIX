@@ -1,4 +1,5 @@
 import { supabase } from "../../../services/supabase/supabase";
+import { locationTrackingService } from "../../../services/location/LocationTrackingService";
 import { WorkSession, StartWorkForm, EndWorkForm } from "../types/work.types";
 
 const TABLE = "work_sessions";
@@ -140,6 +141,11 @@ export const workService = {
 
     if (error) throw toFriendlyError(error);
 
+    await locationTrackingService.startTracking(employeeId, {
+      latitude: form.latitude,
+      longitude: form.longitude,
+    });
+
     return data as WorkSession;
   },
 
@@ -185,6 +191,11 @@ export const workService = {
       .single();
 
     if (updateError) throw toFriendlyError(updateError);
+
+    await locationTrackingService.stopTracking(employeeId, {
+      latitude: form.latitude,
+      longitude: form.longitude,
+    });
 
     return data as WorkSession;
   },

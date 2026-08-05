@@ -120,7 +120,7 @@ export const useMonthlyTourProgrammeStore =
 
     async createProgramme(payload) {
       try {
-        set({ saving: true });
+        set({ saving: true, error: null });
 
         const programme =
           await MonthlyTourProgrammeService.createProgramme(
@@ -136,11 +136,16 @@ export const useMonthlyTourProgrammeStore =
           saving: false,
           error: e.message,
         });
+        throw e;
       }
     },
 
     async addEntry(entry) {
       try {
+        if (!get().programme?.id) {
+          throw new Error("Please create a monthly tour programme first.");
+        }
+
         const newEntry =
           await MonthlyTourProgrammeService.addEntry(
             entry
@@ -159,11 +164,16 @@ export const useMonthlyTourProgrammeStore =
         set({
           error: e.message,
         });
+        throw e;
       }
     },
 
     async updateEntry(id, payload) {
       try {
+        if (!get().programme?.id) {
+          throw new Error("Please create a monthly tour programme first.");
+        }
+
         const updated =
           await MonthlyTourProgrammeService.updateEntry(
             id,

@@ -10,9 +10,12 @@ import {
   Portal,
   Text,
   TextInput,
+  Menu,
+  SegmentedButtons,
 } from "react-native-paper";
-
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { MonthlyTourEntry } from "../types/monthlyTourProgramme.types";
+import { Dropdown } from "react-native-element-dropdown";
 
 interface Props {
   visible: boolean;
@@ -40,9 +43,12 @@ export default function TourEntryForm({
     useState<"HQ" | "EX" | "TOUR">("HQ");
   const [route, setRoute] = useState("");
   const [travelMode, setTravelMode] = useState("");
+  const [travelModeMenuVisible, setTravelModeMenuVisible] = useState(false);
+  const [typeMenuVisible, setTypeMenuVisible] = useState(false);
   const [km, setKm] = useState("");
   const [customers, setCustomers] = useState("");
   const [routeNo, setRouteNo] = useState("");
+const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (entry) {
@@ -94,22 +100,66 @@ export default function TourEntryForm({
             </Text>
 
             <TextInput
-              label="Tour Date (YYYY-MM-DD)"
-              value={tourDate}
-              onChangeText={setTourDate}
-              mode="outlined"
-              style={styles.input}
-            />
+  mode="outlined"
+  label="Tour Date"
+  value={tourDate}
+  editable={false}
+  right={
+    <TextInput.Icon
+      icon="calendar"
+      onPress={() => setShowDatePicker(true)}
+    />
+  }
+/>
+{showDatePicker && (
+  <DateTimePicker
+    value={
+      tourDate
+        ? new Date(tourDate)
+        : new Date()
+    }
+    mode="date"
+    display="default"
+    onChange={(event: any, selectedDate: { toISOString: () => string; }) => {
+      setShowDatePicker(false);
 
-            <TextInput
-              label="HQ / EX / TOUR"
-              value={type}
-              onChangeText={(v) =>
-                setType(v as any)
-              }
-              mode="outlined"
-              style={styles.input}
-            />
+      if (selectedDate) {
+        setTourDate(
+          selectedDate
+            .toISOString()
+            .split("T")[0]
+        );
+      }
+    }}
+  />
+)}
+
+            <View style={styles.input}>
+              <Text variant="labelMedium" style={styles.label}>Visit Type</Text>
+              <SegmentedButtons
+  value={type}
+  onValueChange={(v) =>
+    setType(v as "HQ" | "EX" | "TOUR")
+  }
+  buttons={[
+    {
+      value: "HQ",
+      label: "HQ",
+      icon: "office-building",
+    },
+    {
+      value: "EX",
+      label: "EX",
+      icon: "map-marker-radius",
+    },
+    {
+      value: "TOUR",
+      label: "Tour",
+      icon: "car",
+    },
+  ]}
+/>
+            </View>
 
             <TextInput
               label="Route Details"
@@ -120,13 +170,57 @@ export default function TourEntryForm({
               style={styles.input}
             />
 
-            <TextInput
-              label="Travel Mode"
-              value={travelMode}
-              onChangeText={setTravelMode}
-              mode="outlined"
-              style={styles.input}
-            />
+            <View style={styles.input}>
+              <Text variant="labelMedium" style={styles.label}>Travel Mode</Text>
+             <Dropdown
+  style={{
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 55,
+  }}
+  placeholderStyle={{
+    color: "#888",
+  }}
+  selectedTextStyle={{
+    color: "#000",
+  }}
+  data={[
+    {
+      label: "Bike",
+      value: "Bike",
+    },
+    {
+      label: "Car",
+      value: "Car",
+    },
+    {
+      label: "Bus",
+      value: "Bus",
+    },
+    {
+      label: "Train",
+      value: "Train",
+    },
+    {
+      label: "Flight",
+      value: "Flight",
+    },
+    {
+      label: "Walk",
+      value: "Walk",
+    },
+  ]}
+  labelField="label"
+  valueField="value"
+  placeholder="Select Travel Mode"
+  value={travelMode}
+  onChange={(item) => {
+    setTravelMode(item.value);
+  }}
+/>
+            </View>
 
             <TextInput
               label="Total KM"
@@ -155,19 +249,25 @@ export default function TourEntryForm({
             />
 
             <View style={styles.buttons}>
-              <Button
-                mode="outlined"
-                onPress={onClose}
-              >
-                Cancel
-              </Button>
+             <Button
+    mode="outlined"
+    icon="close"
+    onPress={onClose}
+>
 
-              <Button
-                mode="contained"
-                onPress={handleSave}
-              >
-                Save
-              </Button>
+Cancel
+
+</Button>
+
+<Button
+    mode="contained"
+    icon="content-save"
+    onPress={handleSave}
+>
+
+Save Tour
+
+</Button>
             </View>
           </ScrollView>
         </View>
@@ -191,6 +291,9 @@ const styles = StyleSheet.create({
 
   input: {
     marginBottom: 14,
+  },
+  label: {
+    marginBottom: 8,
   },
 
   buttons: {

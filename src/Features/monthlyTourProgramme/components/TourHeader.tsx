@@ -68,12 +68,18 @@ export default function TourHeader({
         </View>
 
         <Chip
-          mode="flat"
-          compact
-          style={styles.chip}
-        >
-          {(programme?.status || "draft").toUpperCase()}
-        </Chip>
+  icon={
+    programme?.status === "approved"
+      ? "check-circle"
+      : programme?.status === "rejected"
+      ? "close-circle"
+      : programme?.status === "submitted"
+      ? "clock-outline"
+      : "file-document-edit"
+  }
+>
+  {programme?.status?.toUpperCase()}
+</Chip>
       </Card.Content>
     </Card>
   );

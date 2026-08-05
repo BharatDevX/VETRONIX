@@ -16,6 +16,7 @@ import {
 } from "react-native-paper";
 
 import { useAuthStore } from "../../auth/store/auth.store";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { useMonthlyTourProgramme } from "../../monthlyTourProgramme/hooks/useMonthlTourProgramme";
 
@@ -26,6 +27,7 @@ import TourEntryCard from "../components/TourEntryCard";
 import TourEntryForm from "../components/TourEntryForm";
 
 import { MonthlyTourEntry } from "../types/monthlyTourProgramme.types";
+import { useMonthlyTourProgrammeStore } from "../store/monthlyTouProgramme.store";
 
 export default function MonthlyTourProgrammeScreen() {
   const { employee } = useAuthStore();
@@ -41,6 +43,7 @@ export default function MonthlyTourProgrammeScreen() {
     remove,
     submit,
     canEdit,
+    create,
   } = useMonthlyTourProgramme();
 
   const [search, setSearch] = useState("");
@@ -60,16 +63,18 @@ export default function MonthlyTourProgrammeScreen() {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
 
-  useEffect(() => {
+  
+useFocusEffect(
+  React.useCallback(() => {
     if (!employee) return;
 
-    refresh(
+    void refresh(
       employee.id,
       currentMonth,
       currentYear
     );
-  }, []);
-
+  }, [employee, currentMonth, currentYear])
+);
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
       const matchesSearch =
@@ -222,13 +227,43 @@ export default function MonthlyTourProgrammeScreen() {
     setEditingEntry(null);
   }}
   onSave={async (data) => {
-    if (!programme) return;
+    if (!employee) return;
+
+    let currentProgramme = programme;
+
+    if (!currentProgramme) {
+      await refresh(employee.id, currentMonth, currentYear);
+      currentProgramme = programme;
+    }
+
+    if (!currentProgramme) {
+      await create({
+  employee_id: employee.id,
+  month: currentMonth,
+  year: currentYear,
+});
+
+await refresh(
+  employee.id,
+  currentMonth,
+  currentYear
+);
+
+currentProgramme =
+  useMonthlyTourProgrammeStore
+    .getState()
+    .programme;
+    }
+
+    if (!currentProgramme) {
+      return;
+    }
 
     if (editingEntry) {
       await update(editingEntry.id, data);
     } else {
       await add({
-        programme_id: programme.id,
+        programme_id: currentProgramme.id,
         sequence_no: entries.length + 1,
         ...data,
       });

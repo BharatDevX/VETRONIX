@@ -9,7 +9,6 @@ import AppSearchDropdown from "../../../components/ui/AppSearchDropdown";
 import AppDatePicker from "../../../components/ui/AppDatePicker";
 import AppInput from "../../../components/ui/AppInput";
 import PrimaryButton from "../../../components/ui/PrimaryButton";
-import AppCard from "../../../components/ui/AppCard";
 
 import { useMasters } from "../../master/hooks/useMasters";
 import { useDealerVisit } from "../hooks/useDealerVisit";
@@ -84,7 +83,10 @@ export default function DealerVisitScreen() {
   }
 
   async function saveVisit() {
-    if (!form.dealer_id || saving) return;
+    if (!form.dealer_id) {
+      Alert.alert("Validation", "Please select a dealer before saving.");
+      return;
+    }
 
     try {
       const result = await save(form);
@@ -95,8 +97,11 @@ export default function DealerVisitScreen() {
     }
   }
 
+  const locationReady = !!form.latitude && !!form.longitude;
+
   return (
     <ScrollView
+      style={styles.screen}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
@@ -112,8 +117,31 @@ export default function DealerVisitScreen() {
           gap: 16,
         }}
       >
-        <AppCard>
-          <Text style={styles.cardTitle}>Visit Details</Text>
+        <View style={styles.statusBar}>
+          <View style={[styles.statusDot, locationReady ? styles.dotOn : styles.dotOff]} />
+
+          <Text style={styles.statusText}>
+            {locationReady ? "GPS location captured" : "Fetching your location…"}
+          </Text>
+
+          <View style={styles.datePill}>
+            <Text style={styles.datePillText}>{dayjs(form.visit_date).format("DD MMM")}</Text>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <View style={[styles.stepBadge, { backgroundColor: "#E7F7F0" }]}>
+              <Text style={[styles.stepBadgeText, { color: "#1D9C6E" }]}>1</Text>
+            </View>
+
+            <View style={styles.headText}>
+              <Text style={styles.cardTitle}>Visit Details</Text>
+              <Text style={styles.cardSub}>Dealer, schedule and location</Text>
+            </View>
+          </View>
+
+          <View style={[styles.accent, { backgroundColor: "#1D9C6E" }]} />
 
           <View style={styles.fieldGroup}>
             <AppSearchDropdown
@@ -146,10 +174,21 @@ export default function DealerVisitScreen() {
               onChangeText={() => {}}
             />
           </View>
-        </AppCard>
+        </View>
 
-        <AppCard>
-          <Text style={styles.cardTitle}>Discussion & Outcome</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <View style={[styles.stepBadge, { backgroundColor: "#E8F0FE" }]}>
+              <Text style={[styles.stepBadgeText, { color: "#2563EB" }]}>2</Text>
+            </View>
+
+            <View style={styles.headText}>
+              <Text style={styles.cardTitle}>Discussion & Outcome</Text>
+              <Text style={styles.cardSub}>What was covered and agreed</Text>
+            </View>
+          </View>
+
+          <View style={[styles.accent, { backgroundColor: "#2563EB" }]} />
 
           <View style={styles.fieldGroup}>
             <AppInput
@@ -168,10 +207,21 @@ export default function DealerVisitScreen() {
               onChangeText={(text) => setForm({ ...form, outcome: text })}
             />
           </View>
-        </AppCard>
+        </View>
 
-        <AppCard>
-          <Text style={styles.cardTitle}>Follow-up</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <View style={[styles.stepBadge, { backgroundColor: "#FDF0E4" }]}>
+              <Text style={[styles.stepBadgeText, { color: "#D97706" }]}>3</Text>
+            </View>
+
+            <View style={styles.headText}>
+              <Text style={styles.cardTitle}>Follow-up</Text>
+              <Text style={styles.cardSub}>Plan the next dealer touchpoint</Text>
+            </View>
+          </View>
+
+          <View style={[styles.accent, { backgroundColor: "#D97706" }]} />
 
           <View style={styles.fieldGroup}>
             <AppDatePicker
@@ -180,7 +230,7 @@ export default function DealerVisitScreen() {
               onChange={(date) => setForm({ ...form, next_followup_date: date })}
             />
           </View>
-        </AppCard>
+        </View>
 
         <PrimaryButton title="Save Visit" onPress={saveVisit} loading={saving} disabled={saving} />
       </Animated.View>
@@ -189,21 +239,121 @@ export default function DealerVisitScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: "#F5F7FA",
+  },
+
   container: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 44,
     gap: 16,
   },
 
+  statusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EEF1F6",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+
+  dotOn: {
+    backgroundColor: "#1D9C6E",
+  },
+
+  dotOff: {
+    backgroundColor: "#C7CDD6",
+  },
+
+  statusText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+
+  datePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "#F1F4F9",
+  },
+
+  datePillText: {
+    fontSize: 11.5,
+    fontWeight: "800",
+    color: "#3C4350",
+  },
+
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#EEF1F6",
+    padding: 16,
+    shadowColor: "#0B1220",
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+
+  cardHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  headText: {
+    flex: 1,
+  },
+
+  stepBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  stepBadgeText: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
   cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1D1F",
-    marginBottom: 4,
+    fontSize: 15.5,
+    fontWeight: "800",
+    color: "#101418",
+  },
+
+  cardSub: {
+    fontSize: 12,
+    color: "#8A8F98",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+
+  accent: {
+    height: 3,
+    width: 38,
+    borderRadius: 999,
+    marginTop: 12,
+    opacity: 0.9,
   },
 
   fieldGroup: {
     gap: 12,
-    marginTop: 8,
+    marginTop: 14,
   },
 });

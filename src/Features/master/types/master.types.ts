@@ -8,6 +8,11 @@ export interface Dealer {
   dealer_name: string;
 }
 
+export interface Retailer {
+  id: string;
+  retailer_name: string;
+}
+
 export interface Product {
   id: string;
   product_name: string;

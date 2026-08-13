@@ -19,13 +19,20 @@ export class MonthlyTourProgrammeService {
     hq?: string | null;
   }) {
     const { data, error } = await supabase
-      .from("monthly_tour_programmes")
-      .insert(payload)
-      .select()
-      .single();
+  .from("monthly_tour_programmes")
+  .insert({
+    ...payload,
+    status: "draft",
+    is_submitted: false,
+  })
+  .select()
+  .single();
 
-    if (error) throw error;
-
+if (error) {
+  console.log("CREATE PROGRAMME ERROR");
+  console.log(error);
+  throw error;
+}
     return data as MonthlyTourProgramme;
   }
 
@@ -67,9 +74,10 @@ export class MonthlyTourProgrammeService {
     const { data, error } = await supabase
       .from("monthly_tour_programmes")
       .update({
-        status: "submitted",
-        submitted_at: new Date().toISOString(),
-      })
+    status: "submitted",
+    is_submitted: true,
+    submitted_at: new Date().toISOString(),
+})
       .eq("id", id)
       .select()
       .single();

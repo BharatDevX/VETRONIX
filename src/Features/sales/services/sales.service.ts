@@ -4,6 +4,7 @@ import { Sale, SaleForm, SaleType } from "../types/sales.types";
 interface SalePayload {
   employee_id: string;
   doctor_id: string | null;
+  retailer_id: string | null;
   dealer_id: string;
   product_id: string;
   sale_date: string;
@@ -49,24 +50,6 @@ function isDuplicateError(error: unknown): boolean {
   return code === "23505" || message.includes("duplicate") || message.includes("already exists") || message.includes("unique");
 }
 
-function toFriendlyError(error: unknown): Error {
-  const message = getErrorMessage(error).toLowerCase();
-
-  if (isDuplicateError(error)) {
-    return new Error("This sale already exists. It was not duplicated.");
-  }
-
-  if (message.includes("network") || message.includes("fetch") || message.includes("timeout")) {
-    return new Error("Network issue. Please check your connection and try again.");
-  }
-
-  if (message.includes("validation") || message.includes("required") || message.includes("check constraint")) {
-    return new Error("Please complete the required fields before saving.");
-  }
-
-  return new Error("Unable to save the sale right now.");
-}
-
 function normalizeRequiredId(value: string | undefined): string {
   return value?.trim() ?? "";
 }
@@ -80,8 +63,13 @@ function normalizeDoctorId(saleType: SaleType, doctorId?: string): string | null
   return trimmedDoctorId ? trimmedDoctorId : null;
 }
 
-function calculateAmount(quantity: number, rate: number): number {
-  return Math.round((Number(quantity) * Number(rate) + Number.EPSILON) * 100) / 100;
+function normalizeRetailerId(saleType: SaleType, retailerId?: string): string | null {
+  if (saleType !== "doctor" && saleType !== "retailer") {
+    return null;
+  }
+
+  const trimmedRetailerId = retailerId?.trim();
+  return trimmedRetailerId ? trimmedRetailerId : null;
 }
 
 async function findExistingSale(payload: SalePayload): Promise<Sale | null> {
@@ -96,14 +84,18 @@ async function findExistingSale(payload: SalePayload): Promise<Sale | null> {
     .order("created_at", { ascending: false })
     .limit(1);
 
-  const { data, error } = payload.doctor_id
-    ? await baseQuery.eq("doctor_id", payload.doctor_id).maybeSingle()
-    : await baseQuery.is("doctor_id", null).maybeSingle();
+  const doctorQuery = payload.doctor_id
+    ? baseQuery.eq("doctor_id", payload.doctor_id)
+    : baseQuery.is("doctor_id", null);
 
- if (error) {
-  console.log("findExistingSale:", error);
-  throw error;
-}
+  const { data, error } = payload.retailer_id
+    ? await doctorQuery.eq("retailer_id", payload.retailer_id).maybeSingle()
+    : await doctorQuery.is("retailer_id", null).maybeSingle();
+
+  if (error) {
+    console.log("findExistingSale:", error);
+    throw error;
+  }
 
   return (data ?? null) as Sale | null;
 }
@@ -120,7 +112,7 @@ async function updateExistingSale(existingId: string, payload: SalePayload): Pro
   console.log("updateExistingSale:", error);
   throw error;
 }
-  if (!data) throw new Error("Unable to save the sale right now.");
+  if (!data) throw new Error("Unable to save the order form right now.");
 
   return data as Sale;
 }
@@ -149,9 +141,10 @@ export async function saveSale(employeeId: string, form: SaleForm): Promise<Save
   const productId = normalizeRequiredId(form.product_id);
   const saleDate = form.sale_date?.trim();
   const doctorId = normalizeDoctorId(form.sale_type, form.doctor_id);
+  const retailerId = normalizeRetailerId(form.sale_type, form.retailer_id);
 
   if (!employeeId?.trim()) {
-    throw new Error("Unable to save the sale right now.");
+    throw new Error("Unable to save the order form right now.");
   }
 
   if (!dealerId) {
@@ -164,6 +157,10 @@ export async function saveSale(employeeId: string, form: SaleForm): Promise<Save
 
   if (form.sale_type === "doctor" && !doctorId) {
     throw new Error("Please select a doctor for doctor sales.");
+  }
+
+  if (form.sale_type === "retailer" && !retailerId) {
+    throw new Error("Please select a retailer for retailer sales.");
   }
 
   if (!Number.isFinite(quantity) || quantity <= 0) {
@@ -181,6 +178,7 @@ export async function saveSale(employeeId: string, form: SaleForm): Promise<Save
   const payload: SalePayload = {
     employee_id: employeeId,
     doctor_id: doctorId,
+    retailer_id: retailerId,
     dealer_id: dealerId,
     product_id: productId,
     sale_date: saleDate,
@@ -217,7 +215,7 @@ throw error;
   }
 
   if (!data) {
-    throw new Error("Unable to save the sale right now.");
+    throw new Error("Unable to save the order form right now.");
   }
 
   return { data: data as Sale, isUpdate: false };

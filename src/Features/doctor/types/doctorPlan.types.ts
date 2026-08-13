@@ -9,11 +9,9 @@ export interface DoctorMeetingPlan {
 
   planned_date: string;
 
-  meeting_date: string;
-
   discussion: string;
 
-  agreed_percentage: number;
+  reply: string | null;
 
   month: number;
 
@@ -41,11 +39,9 @@ export interface DoctorMeetingPlanForm {
 
   planned_date: string;
 
-  meeting_date: string;
-
   discussion: string;
 
-  agreed_percentage: number;
+  reply?: string;
 
   product_ids: string[];
 }

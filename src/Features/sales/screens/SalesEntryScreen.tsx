@@ -19,6 +19,7 @@ function createInitialForm(saleDate: string): SaleForm {
   return {
     sale_type: "counter",
     doctor_id: "",
+    retailer_id: "",
     dealer_id: "",
     product_id: "",
     sale_date: saleDate,
@@ -34,7 +35,7 @@ function parseNumber(value: string): number {
 
 export default function SalesEntryScreen() {
   const { employee } = useAuthStore();
-  const { doctors, dealers, products } = useMasters();
+  const { doctors, dealers, retailers, products } = useMasters();
   const { save, saving } = useSales(employee?.id ?? "");
 
   const [form, setForm] = useState<SaleForm>(() => createInitialForm(dayjs().format("YYYY-MM-DD")));
@@ -84,6 +85,10 @@ export default function SalesEntryScreen() {
       return "Please select a doctor for doctor sales.";
     }
 
+    if (form.sale_type === "retailer" && !form.retailer_id?.trim()) {
+      return "Please select a retailer for retailer sales.";
+    }
+
     if (!Number.isFinite(Number(form.quantity)) || Number(form.quantity) <= 0) {
       return "Quantity must be greater than 0.";
     }
@@ -107,39 +112,95 @@ export default function SalesEntryScreen() {
       const result = await save(form);
 
       if (result?.isUpdate) {
-        Alert.alert("Success", "Existing sale updated successfully.");
+        Alert.alert("Success", "Existing order form updated successfully.");
       } else {
-        Alert.alert("Success", "Sale saved successfully.");
+        Alert.alert("Success", "Order form saved successfully.");
       }
 
       resetForm();
     } catch (error) {
-      Alert.alert("Error", error instanceof Error ? error.message : "Unable to save sale.");
+      Alert.alert("Error", error instanceof Error ? error.message : "Unable to save order form.");
     }
   }
 
+  // ---- presentation-only labels for the sale type currently selected ----
+  const saleTypeLabels: Record<string, string> = {
+    counter: "Counter Sale",
+    doctor: "Doctor Sale",
+    retailer: "Retailer Sale",
+    farmer: "Farmer Sale",
+  };
+
+  const activeSaleTypeLabel = saleTypeLabels[form.sale_type] ?? "Counter Sale";
+
   return (
     <ScrollView
+      style={styles.screen}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
       <ScreenHeader
-        title="Sales Entry"
-        subtitle="Record a new sale"
+        title="Order Form"
+        subtitle="Record a new order"
       />
 
       <Animated.View
         style={{
           opacity: contentOpacity,
           transform: [{ translateY: contentTranslateY }],
-          gap: 16,
+          gap: 18,
         }}
       >
+        {/* ---------- HERO / ORDER SUMMARY ---------- */}
+        <View style={styles.hero}>
+          <View style={styles.heroGlowOne} />
+          <View style={styles.heroGlowTwo} />
 
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>ORDER SUMMARY</Text>
+            </View>
+
+            <View style={styles.heroPill}>
+              <View style={styles.heroPillDot} />
+              <Text style={styles.heroPillText}>{activeSaleTypeLabel}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.heroAmountLabel}>Total Amount</Text>
+          <Text style={styles.heroAmount}>₹{amount.toFixed(2)}</Text>
+
+          <View style={styles.heroMetaRow}>
+            <View style={styles.heroMetaTile}>
+              <Text style={styles.heroMetaLabel}>QTY</Text>
+              <Text style={styles.heroMetaValue}>{String(form.quantity || 0)}</Text>
+            </View>
+
+            <View style={styles.heroMetaTile}>
+              <Text style={styles.heroMetaLabel}>RATE</Text>
+              <Text style={styles.heroMetaValue}>₹{Number(form.rate || 0).toFixed(2)}</Text>
+            </View>
+
+            <View style={styles.heroMetaTile}>
+              <Text style={styles.heroMetaLabel}>DATE</Text>
+              <Text style={styles.heroMetaValue}>
+                {dayjs(form.sale_date).format("DD MMM")}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ---------- SALE TYPE ---------- */}
         <AppCard>
-          <Text style={styles.cardTitle}>Sale Type</Text>
+          <View style={styles.sectionHeadRow}>
+            <View style={styles.accentBar} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Sale Type</Text>
+              <Text style={styles.cardSubtitle}>Choose how this order is booked</Text>
+            </View>
+          </View>
 
-          <View style={{ marginTop: 10 }}>
+          <View style={{ marginTop: 14 }}>
             <AppRadioGroup
               options={[
                 {
@@ -150,20 +211,36 @@ export default function SalesEntryScreen() {
                   label: "Doctor Sale",
                   value: "doctor",
                 },
+                {
+                  label: "Retailer Sale",
+                  value: "retailer",
+                },
+                {
+                  label: "Farmer Sale",
+                  value: "farmer",
+                },
               ]}
               value={form.sale_type}
               onChange={(value) =>
                 updateForm({
                   sale_type: value as SaleType,
                   doctor_id: "",
+                  retailer_id: "",
                 })
               }
             />
           </View>
         </AppCard>
 
+        {/* ---------- SALE DETAILS ---------- */}
         <AppCard>
-          <Text style={styles.cardTitle}>Sale Details</Text>
+          <View style={styles.sectionHeadRow}>
+            <View style={styles.accentBar} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Sale Details</Text>
+              <Text style={styles.cardSubtitle}>Party, medicine and order date</Text>
+            </View>
+          </View>
 
           <View style={styles.fieldGroup}>
             {form.sale_type === "doctor" && (
@@ -176,6 +253,21 @@ export default function SalesEntryScreen() {
                 onChange={(item) =>
                   updateForm({
                     doctor_id: item.id,
+                  })
+                }
+              />
+            )}
+
+            {(form.sale_type === "doctor" || form.sale_type === "retailer") && (
+              <AppSearchDropdown
+                label="Retailer"
+                data={retailers}
+                labelField="retailer_name"
+                valueField="id"
+                value={form.retailer_id}
+                onChange={(item) =>
+                  updateForm({
+                    retailer_id: item.id,
                   })
                 }
               />
@@ -219,8 +311,15 @@ export default function SalesEntryScreen() {
           </View>
         </AppCard>
 
+        {/* ---------- PRICING ---------- */}
         <AppCard>
-          <Text style={styles.cardTitle}>Pricing</Text>
+          <View style={styles.sectionHeadRow}>
+            <View style={styles.accentBar} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Pricing</Text>
+              <Text style={styles.cardSubtitle}>Amount is calculated automatically</Text>
+            </View>
+          </View>
 
           <View style={styles.fieldGroup}>
             <AppInput
@@ -247,30 +346,225 @@ export default function SalesEntryScreen() {
               onChangeText={() => undefined}
             />
           </View>
+
+          <View style={styles.totalStrip}>
+            <Text style={styles.totalStripLabel}>Payable Amount</Text>
+            <Text style={styles.totalStripValue}>₹{amount.toFixed(2)}</Text>
+          </View>
         </AppCard>
 
-        <PrimaryButton title="Save Sale" onPress={saveSale} loading={saving} disabled={saving} />
-
+        <View style={styles.submitWrap}>
+          <PrimaryButton title="Save Order Form" onPress={saveSale} loading={saving} disabled={saving} />
+          <Text style={styles.helperNote}>
+            Review the party and pricing details before saving.
+          </Text>
+        </View>
       </Animated.View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#F4F8FC" },
+
   container: {
     padding: 20,
-    paddingBottom: 40,
-    gap: 16,
+    paddingBottom: 44,
+    gap: 18,
+  },
+
+  /* ---------- HERO ---------- */
+  hero: {
+    borderRadius: 26,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    backgroundColor: "#0F76AE",
+    overflow: "hidden",
+    shadowColor: "#00416E",
+    shadowOpacity: 0.26,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 9 },
+    elevation: 8,
+  },
+
+  heroGlowOne: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    top: -90,
+    right: -60,
+    backgroundColor: "rgba(255,255,255,0.13)",
+  },
+
+  heroGlowTwo: {
+    position: "absolute",
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    bottom: -110,
+    left: -70,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  heroBadge: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+
+  heroBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+    color: "#FFFFFF",
+  },
+
+  heroPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.24)",
+  },
+
+  heroPillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#7FE3B8",
+  },
+
+  heroPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  heroAmountLabel: {
+    marginTop: 18,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: "#BFDFFA",
+  },
+
+  heroAmount: {
+    marginTop: 3,
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    color: "#FFFFFF",
+  },
+
+  heroMetaRow: {
+    marginTop: 18,
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  heroMetaTile: {
+    flex: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)",
+  },
+
+  heroMetaLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    color: "#BFDFFA",
+  },
+
+  heroMetaValue: {
+    marginTop: 4,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  /* ---------- SECTIONS ---------- */
+  sectionHeadRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+
+  accentBar: {
+    width: 4,
+    height: 30,
+    borderRadius: 3,
+    backgroundColor: "#1597D4",
   },
 
   cardTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#1A1D1F",
+    fontWeight: "800",
+    color: "#16324F",
+  },
+
+  cardSubtitle: {
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: "#8697A8",
+    marginTop: 3,
   },
 
   fieldGroup: {
     gap: 12,
-    marginTop: 10,
+    marginTop: 14,
+  },
+
+  totalStrip: {
+    marginTop: 16,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    backgroundColor: "#EDF6FC",
+    borderWidth: 1,
+    borderColor: "#D6EAF7",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  totalStripLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#4C6379",
+  },
+
+  totalStripValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F76AE",
+  },
+
+  submitWrap: {
+    marginTop: 2,
+    gap: 10,
+  },
+
+  helperNote: {
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#94A3B2",
   },
 });

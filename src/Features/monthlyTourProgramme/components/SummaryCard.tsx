@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import { Card, Text } from "react-native-paper";
+import { Text } from "react-native-paper";
 
 import { MonthlyTourSummary } from "../types/monthlyTourProgramme.types";
 
@@ -11,27 +11,34 @@ interface Props {
 interface StatCardProps {
   title: string;
   value: string | number;
+  glyph: string;
+  tint: string;
+  accent: string;
 }
 
-function StatCard({ title, value }: StatCardProps) {
+function StatCard({
+  title,
+  value,
+  glyph,
+  tint,
+  accent,
+}: StatCardProps) {
   return (
-    <Card style={styles.statCard}>
-      <Card.Content style={styles.content}>
-        <Text
-          variant="bodyMedium"
-          style={styles.title}
-        >
+    <View style={styles.statCard}>
+      <View style={styles.topRow}>
+        <View style={[styles.glyphBox, { backgroundColor: tint }]}>
+          <Text style={[styles.glyph, { color: accent }]}>{glyph}</Text>
+        </View>
+
+        <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
+      </View>
 
-        <Text
-          variant="headlineMedium"
-          style={styles.value}
-        >
-          {value}
-        </Text>
-      </Card.Content>
-    </Card>
+      <Text style={styles.value}>{value}</Text>
+
+      <View style={[styles.underline, { backgroundColor: accent }]} />
+    </View>
   );
 }
 
@@ -44,11 +51,17 @@ export default function SummaryCard({
         <StatCard
           title="Planned Days"
           value={summary.plannedDays}
+          glyph="📆"
+          tint="#EEF2FF"
+          accent="#4F6BED"
         />
 
         <StatCard
           title="Total Tours"
           value={summary.totalTours}
+          glyph="🧭"
+          tint="#E7F7F0"
+          accent="#1D9C6E"
         />
       </View>
 
@@ -56,11 +69,17 @@ export default function SummaryCard({
         <StatCard
           title="Expected KM"
           value={summary.totalKm}
+          glyph="🛣️"
+          tint="#FFF3E6"
+          accent="#E08A2B"
         />
 
         <StatCard
           title="Customers"
           value={summary.totalCustomers}
+          glyph="👥"
+          tint="#F1F0FF"
+          accent="#7C5CE0"
         />
       </View>
     </View>
@@ -80,22 +99,58 @@ const styles = StyleSheet.create({
 
   statCard: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#EEF1F6",
+    shadowColor: "#0B1220",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
   },
 
-  content: {
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+
+  glyphBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 18,
+  },
+
+  glyph: {
+    fontSize: 13,
   },
 
   title: {
-    opacity: 0.7,
-    marginBottom: 8,
-    textAlign: "center",
+    flexShrink: 1,
+    fontSize: 11.5,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: "#8A8F98",
   },
 
   value: {
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#101418",
+    letterSpacing: -0.5,
+  },
+
+  underline: {
+    height: 3,
+    width: 28,
+    borderRadius: 3,
+    marginTop: 10,
+    opacity: 0.85,
   },
 });

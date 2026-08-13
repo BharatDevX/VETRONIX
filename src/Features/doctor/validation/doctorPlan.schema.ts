@@ -8,14 +8,9 @@ export const DoctorMeetingPlanSchema = z.object({
 
     planned_date: z.string(),
 
-    meeting_date: z.string(),
-
     discussion: z.string().min(1),
 
-    agreed_percentage: z
-        .number()
-        .min(0)
-        .max(100),
+    reply: z.string().max(1000).optional(),
 
     product_ids: z.array(z.string())
 

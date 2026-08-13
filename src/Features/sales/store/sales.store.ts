@@ -17,6 +17,7 @@ function getSaleBusinessKey(sale: Sale): string {
     sale.sale_type,
     sale.dealer_id,
     sale.doctor_id ?? "null",
+    sale.retailer_id ?? "null",
     sale.product_id,
     sale.sale_date,
   ].join("|");

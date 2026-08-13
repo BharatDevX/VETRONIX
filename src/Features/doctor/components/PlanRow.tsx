@@ -45,16 +45,19 @@ export default function PlanRow({
         onChange={(date: any) => onChange("planned_date", date)}
       />
 
-      <AppDatePicker
-        label="Meeting Date"
-        value={value.meeting_date}
-        onChange={(date: any) => onChange("meeting_date", date)}
-      />
-
       <AppInput
               label="Discussion"
               value={value.discussion}
               onChangeText={(text: string) => onChange("discussion", text)} placeholder={""}      />
+
+      <AppInput
+              label="Reply"
+              value={value.reply}
+              onChangeText={(text: string) => onChange("reply", text.slice(0, 1000))}
+              placeholder=""
+              multiline
+              numberOfLines={4}
+      />
 
       <AppMultiSelect
         label="Agreed Medicines"
@@ -64,12 +67,6 @@ export default function PlanRow({
         value={value.product_ids}
         onChange={(items: any) => onChange("product_ids", items)}
       />
-
-      <AppInput
-              label="Agreed %"
-
-              value={String(value.agreed_percentage)}
-              onChangeText={(text) => onChange("agreed_percentage", Number(text))} placeholder={""}      />
 
       <PrimaryButton
         title="Delete Row"

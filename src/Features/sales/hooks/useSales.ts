@@ -34,11 +34,11 @@ export function useSales(employeeId: string) {
 
   const save = useCallback(async (form: SaleForm): Promise<SaveResult> => {
     if (!employeeId) {
-      throw new Error("Unable to save the sale right now.");
+      throw new Error("Unable to save the order form right now.");
     }
 
     if (saveInFlightRef.current) {
-      throw new Error("Please wait while the sale is being saved.");
+      throw new Error("Please wait while the order form is being saved.");
     }
 
     saveInFlightRef.current = true;

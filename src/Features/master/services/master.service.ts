@@ -24,6 +24,18 @@ export async function getDealers() {
   return data;
 }
 
+export async function getRetailers() {
+  const { data, error } = await supabase
+    .from("retailers")
+    .select("*")
+    .eq("is_active", true)
+    .order("retailer_name");
+
+  if (error) throw error;
+
+  return data;
+}
+
 export async function getProducts() {
   const { data, error } = await supabase
     .from("products")

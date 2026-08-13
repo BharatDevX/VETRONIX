@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   RefreshControl,
-  
   ScrollView,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -108,7 +109,7 @@ useFocusEffect(
   if (loading) {
     return (
       <SafeAreaView style={styles.loader}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color="#1D9C6E" />
       </SafeAreaView>
     );
   }
@@ -120,9 +121,12 @@ useFocusEffect(
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
+            tintColor="#1D9C6E"
+            colors={["#1D9C6E"]}
           />
         }
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
         <TourHeader
           programme={programme}
@@ -131,45 +135,76 @@ useFocusEffect(
 
         <SummaryCard summary={summary} />
 
-        <Searchbar
-          placeholder="Search Route..."
-          value={search}
-          onChangeText={setSearch}
-          style={styles.search}
-        />
+        <View style={styles.filterCard}>
+          <Text style={styles.filterTitle}>Filters</Text>
 
-        <SegmentedButtons
-          value={filter}
-          onValueChange={(v) =>
-            setFilter(v as any)
-          }
-          buttons={[
-            {
-              value: "ALL",
-              label: "All",
-            },
-            {
-              value: "HQ",
-              label: "HQ",
-            },
-            {
-              value: "EX",
-              label: "EX",
-            },
-            {
-              value: "TOUR",
-              label: "Tour",
-            },
-          ]}
-        />
+          <Searchbar
+            placeholder="Search Route..."
+            value={search}
+            onChangeText={setSearch}
+            style={styles.search}
+            inputStyle={styles.searchInput}
+            iconColor="#8A8F98"
+            placeholderTextColor="#9AA1AC"
+            elevation={0}
+          />
+
+          <SegmentedButtons
+            value={filter}
+            onValueChange={(v) =>
+              setFilter(v as any)
+            }
+            style={styles.segments}
+            buttons={[
+              {
+                value: "ALL",
+                label: "All",
+              },
+              {
+                value: "HQ",
+                label: "HQ",
+              },
+              {
+                value: "EX",
+                label: "EX",
+              },
+              {
+                value: "TOUR",
+                label: "Tour",
+              },
+            ]}
+          />
+        </View>
+
+        <View style={styles.sectionRow}>
+          <Text style={styles.sectionTitle}>Tour Entries</Text>
+
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>
+              {filteredEntries.length}
+            </Text>
+          </View>
+        </View>
 
        {filteredEntries.length === 0 ? (
-  <EmptyState
-    onAddTour={() => {
-      setEditingEntry(null);
-      setModalVisible(true);
-    }}
-  />
+    (!programme || canEdit) ? (
+        <EmptyState
+            onAddTour={() => {
+                setEditingEntry(null);
+                setModalVisible(true);
+            }}
+        />
+    ) : (
+        <View style={styles.noEntries}>
+            <View style={styles.noEntriesGlyphWrap}>
+                <Text style={styles.noEntriesGlyph}>🗓️</Text>
+            </View>
+
+            <Text style={styles.noEntriesText}>
+                No tour entries for this programme.
+            </Text>
+        </View>
+    )
 ) : (
   <>
     {filteredEntries.map((entry) => (
@@ -178,47 +213,66 @@ useFocusEffect(
         entry={entry}
         editable={canEdit}
         onEdit={(tour) => {
+          // Editing is only ever wired up via a visible Edit button, which
+          // TourEntryCard already hides when `editable` (canEdit) is false.
+          // This check is a defense-in-depth guard reusing that same flag.
+          if (!canEdit) return;
           setEditingEntry(tour);
           setModalVisible(true);
         }}
-        onDelete={remove}
+        onDelete={(id) => {
+          if (!canEdit) return;
+          remove(id);
+        }}
       />
     ))}
-
-    {programme?.status === "draft" && (
-      <Button
-        mode="contained"
-        icon="send"
-        style={styles.submitButton}
-        onPress={submit}
-      >
-        Submit Monthly Programme
-      </Button>
-    )}
-
-    <Button
-      mode="outlined"
-      icon="file-pdf-box"
-      style={styles.pdfButton}
-      onPress={() => {
-        // TODO:
-        // Generate PDF
-      }}
-    >
-      Generate PDF
-    </Button>
   </>
+)}
+
+{canEdit && entries.length > 0 && (
+  <Button
+    mode="contained"
+    icon="send"
+    style={styles.submitButton}
+    contentStyle={styles.buttonContent}
+    labelStyle={styles.buttonLabel}
+    buttonColor="#1D9C6E"
+    textColor="#FFFFFF"
+    onPress={submit}
+  >
+    Submit Monthly Programme
+  </Button>
+)}
+
+{entries.length > 0 && (
+  <Button
+    mode="outlined"
+    icon="file-pdf-box"
+    style={styles.pdfButton}
+    contentStyle={styles.buttonContent}
+    labelStyle={styles.buttonLabel}
+    textColor="#3C4350"
+    onPress={() => {
+      // TODO:
+      // Generate PDF
+    }}
+  >
+    Generate PDF
+  </Button>
 )}
       </ScrollView>
 
-      <FAB
+      {(!programme || canEdit) && (
+    <FAB
         icon="plus"
+        color="#FFFFFF"
         style={styles.fab}
         onPress={() => {
-          setEditingEntry(null);
-          setModalVisible(true);
+            setEditingEntry(null);
+            setModalVisible(true);
         }}
-      />
+    />
+)}
       <TourEntryForm
   visible={modalVisible}
   entry={editingEntry}
@@ -228,6 +282,18 @@ useFocusEffect(
   }}
   onSave={async (data) => {
     if (!employee) return;
+
+    // Defense-in-depth: the form can only be opened via the FAB, the
+    // EmptyState "Add" button, or a card's Edit button, all of which are
+    // already gated on `canEdit`. This reuses the same flag rather than
+    // introducing new logic.
+  if (programme && !canEdit) {
+  Alert.alert(
+    "Monthly Tour Programme",
+    "This programme can no longer be edited."
+  );
+  return;
+}
 
     let currentProgramme = programme;
 
@@ -262,11 +328,30 @@ currentProgramme =
     if (editingEntry) {
       await update(editingEntry.id, data);
     } else {
-      await add({
-        programme_id: currentProgramme.id,
-        sequence_no: entries.length + 1,
-        ...data,
-      });
+      try {
+  console.log("Saving Tour", {
+    programme_id: currentProgramme.id,
+    sequence_no: entries.length + 1,
+    ...data,
+  });
+
+  await add({
+    programme_id: currentProgramme.id,
+    sequence_no: entries.length + 1,
+    ...data,
+  });
+
+  console.log("SUCCESS");
+
+  setModalVisible(false);
+  setEditingEntry(null);
+} catch (e) {
+  console.error("ADD TOUR ERROR", e);
+  Alert.alert(
+    "Error",
+    e instanceof Error ? e.message : JSON.stringify(e)
+  );
+}
     }
 
     setModalVisible(false);
@@ -279,10 +364,11 @@ currentProgramme =
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#F5F7FA",
   },
 
   content: {
-    padding: 16,
+    padding: 18,
     paddingBottom: 120,
   },
 
@@ -290,25 +376,136 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#F5F7FA",
+  },
+
+  filterCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#EEF1F6",
+    shadowColor: "#0B1220",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+
+  filterTitle: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: "#8A8F98",
+    marginBottom: 12,
   },
 
   search: {
-    marginVertical: 16,
+    backgroundColor: "#F5F7FA",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EEF1F6",
+    marginBottom: 14,
+  },
+
+  searchInput: {
+    fontSize: 14.5,
+    color: "#101418",
+    minHeight: 0,
+  },
+
+  segments: {
+    borderRadius: 12,
+  },
+
+  sectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: "#6B7280",
+  },
+
+  countPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: "#EEF1F6",
+  },
+
+  countPillText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#6B7280",
   },
 
   fab: {
     position: "absolute",
     right: 20,
-    bottom: 20,
+    bottom: 24,
+    borderRadius: 20,
+    backgroundColor: "#1D9C6E",
   },
+
   submitButton: {
   marginTop: 20,
-  borderRadius: 12,
+  borderRadius: 999,
 },
 
 pdfButton: {
   marginTop: 12,
   marginBottom: 30,
-  borderRadius: 12,
+  borderRadius: 999,
+  borderColor: "#E3E8F0",
+  backgroundColor: "#FFFFFF",
+},
+
+buttonContent: {
+  paddingVertical: 6,
+},
+
+buttonLabel: {
+  fontWeight: "700",
+  letterSpacing: 0.2,
+},
+
+noEntries: {
+  paddingVertical: 32,
+  paddingHorizontal: 24,
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "#FFFFFF",
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: "#EEF1F6",
+},
+
+noEntriesGlyphWrap: {
+  width: 58,
+  height: 58,
+  borderRadius: 29,
+  backgroundColor: "#F1F4F9",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 12,
+},
+
+noEntriesGlyph: {
+  fontSize: 24,
+},
+
+noEntriesText: {
+  textAlign: "center",
+  fontSize: 13.5,
+  color: "#8A8F98",
 },
 });

@@ -71,9 +71,8 @@ export async function createPlan(employeeId: string, form: DoctorMeetingPlanForm
     doctor_id: form.doctor_id,
     location: form.location,
     planned_date: form.planned_date,
-    meeting_date: form.meeting_date,
     discussion: form.discussion,
-    agreed_percentage: form.agreed_percentage,
+    reply: form.reply?.trim() ? form.reply.trim() : null,
     month,
     year,
   };

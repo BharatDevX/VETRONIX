@@ -7,41 +7,39 @@ import LoginScreen from "./../Features/auth/screens/LoginScreen";
 import HomeScreen from "../Features/home/screens/HomeScreen";
 import AttendanceScreen from "../Features/attendance/screens/AttendanceScreen";
 import DoctorMeetingPlanScreen from "../Features/doctor/screens/DoctorMeetingPlanScreen";
-import DoctorMeetingOutcomeScreen from "../Features/doctor/screens/DoctorMeetingOutcomeScreen";
 import DoctorVisitScreen from "../Features/doctor/screens/DoctorVisitScreen";
 import DealerMeetingPlanScreen from "../Features/dealer/screens/DealerMeetingPlanScreen";
 import DealerVisitScreen from "../Features/dealer/screens/DealerVisitScreen";
-import DealerMeetingOutcomeScreen from "../Features/dealer/screens/DealerMeetingOutcomeScreen";
 import SalesEntryScreen from "../Features/sales/screens/SalesEntryScreen";
 import CounterSaleReportScreen from "../Features/sales/screens/CounterSaleReportScreen";
 import DoctorWiseSalesReportScreen from "../Features/sales/screens/DoctorWiseSalesReportScreen";
 import SecondarySalesReportScreen from "../Features/sales/screens/SecondarySalesReportScreen";
 import IncentiveDashboardScreen from "../Features/sales/screens/IncentiveDashboardScreen";
 import EndWorkScreen from "@/Features/work/screens/EndWorkScreen";
-import StartWorkScreen from "@/Features/work/screens/StartWorkScreen";
+import EmployeeProfileScreen from "../Features/profile/screens/EmployeeProfileScreen";
 import DailyProgressScreen from "../Features/daily-progress/screens/DailyProgressScreen";
 import MonthlyTourProgrammeScreen from "../Features/monthlyTourProgramme/screens/MonthlyTourProgrammeScreen"
+import OrderDeliveryStatusScreen from "../Features/orderDelivery/screens/OrderDeliveryStatusScreen";
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   Home: undefined;
   Attendance: undefined;
   DoctorMeetingPlan: undefined;
-  DoctorMeetingOutcome: undefined;
   DoctorVisit: undefined;
   DealerMeetingPlan: undefined;
   DealerVisit: undefined;
-
-DealerMeetingOutcome: undefined;
+EmployeeProfile: undefined;
 SalesEntry: undefined;
 CounterSaleReport: undefined;
 DoctorWiseSalesReport: undefined;
 SecondarySalesReport: undefined;
 IncentiveDashboard: undefined;
-StartWork: undefined;
+
 EndWork: undefined;
 DailyProgress: undefined;
 MonthlyTourProgramme: undefined;
+OrderDeliveryStatus: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -70,6 +68,10 @@ export default function AppNavigator() {
           component={HomeScreen}
         />
         <Stack.Screen
+  name="EmployeeProfile"
+  component={EmployeeProfileScreen}
+/>
+        <Stack.Screen
           name="Attendance"
           component={AttendanceScreen}
         />
@@ -80,10 +82,6 @@ export default function AppNavigator() {
         <Stack.Screen
           name="DoctorMeetingPlan"
           component={DoctorMeetingPlanScreen}
-        />
-        <Stack.Screen
-          name="DoctorMeetingOutcome"
-          component={DoctorMeetingOutcomeScreen}
         />
         <Stack.Screen
           name="DoctorVisit"
@@ -98,10 +96,6 @@ export default function AppNavigator() {
     component={DealerVisitScreen}
 />
 
-<Stack.Screen
-    name="DealerMeetingOutcome"
-    component={DealerMeetingOutcomeScreen}
-/>
 <Stack.Screen
     name="SalesEntry"
     component={SalesEntryScreen}
@@ -134,10 +128,7 @@ name="IncentiveDashboard"
 component={IncentiveDashboardScreen}
 
 />
-<Stack.Screen
-    name="StartWork"
-    component={StartWorkScreen}
-/>
+
 
 <Stack.Screen
     name="EndWork"
@@ -146,6 +137,10 @@ component={IncentiveDashboardScreen}
 <Stack.Screen
     name="DailyProgress"
     component={DailyProgressScreen}
+/>
+<Stack.Screen
+    name="OrderDeliveryStatus"
+    component={OrderDeliveryStatusScreen}
 />
       </Stack.Navigator>
     </NavigationContainer>

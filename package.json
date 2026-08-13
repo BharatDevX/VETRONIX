@@ -9,6 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "^8.6.0",
     "@react-navigation/bottom-tabs": "^7.18.14",
@@ -27,6 +28,7 @@
     "expo-notifications": "~0.32.17",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "expo-vector-icons": "^10.0.1",
     "lucide-react-native": "^1.26.0",
     "nativewind": "^4.2.6",
     "react": "19.1.0",
@@ -41,6 +43,7 @@
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^4.0.0",
+    "vector-icons": "^0.1.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },

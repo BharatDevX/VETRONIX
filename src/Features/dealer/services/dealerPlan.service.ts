@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 
 import { supabase } from "../../../services/supabase/supabase";
 import { DealerMeetingPlanForm } from "../types/dealerPlan.types";
+import { getLocalActivities, getLocalPartyById, isLocalPartyId, saveLocalActivity } from "../../../services/local/localParty.service";
 
 function toFriendlyError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
@@ -34,13 +35,29 @@ export async function getDealerPlans(employeeId: string) {
     .order("planned_date");
 
   if (error) throw toFriendlyError(error);
-
-  return data;
+  const local = await getLocalActivities(employeeId, "dealer", "meeting_plan");
+  return [...(data ?? []), ...local];
 }
 
 export async function createDealerPlan(employeeId: string, form: DealerMeetingPlanForm) {
   const month = dayjs().month() + 1;
   const year = dayjs().year();
+
+  if (isLocalPartyId(form.dealer_id)) {
+    const party = await getLocalPartyById(employeeId, "dealer", form.dealer_id);
+    if (!party) throw new Error("This local dealer is no longer available on this device.");
+    const data = await saveLocalActivity(employeeId, "dealer", "meeting_plan", {
+      dealer_id: form.dealer_id,
+      location: form.location,
+      planned_date: form.planned_date,
+      meeting_date: form.planned_date,
+      discussion: form.discussion,
+      month,
+      year,
+      is_submitted: true,
+    }, party.name);
+    return { data, isUpdate: false, isLocal: true };
+  }
 
   const { data: existing, error: existingError } = await supabase
     .from("dealer_meeting_plans")
@@ -57,7 +74,8 @@ export async function createDealerPlan(employeeId: string, form: DealerMeetingPl
     dealer_id: form.dealer_id,
     location: form.location,
     planned_date: form.planned_date,
-    meeting_date: form.meeting_date,
+    // Keep the legacy DB column populated without asking the employee for a second date.
+    meeting_date: form.planned_date,
     discussion: form.discussion,
     month,
     year,

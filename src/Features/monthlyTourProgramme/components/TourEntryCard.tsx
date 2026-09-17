@@ -104,17 +104,17 @@ export default function TourEntryCard({
         </View>
       </View>
 
-      <View style={styles.row}>
-        <Text style={styles.label}>Customers</Text>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{entry.total_customer_plan}</Text>
-        </View>
-      </View>
-
       <View style={styles.rowLast}>
         <Text style={styles.label}>Route No.</Text>
         <Text style={styles.value}>{entry.route_no || "-"}</Text>
       </View>
+
+      {entry.note ? (
+        <View style={styles.noteBox}>
+          <Text style={styles.noteLabel}>NOTE / REMARK</Text>
+          <Text style={styles.noteText}>{entry.note}</Text>
+        </View>
+      ) : null}
 
       {editable && (
         <>
@@ -280,6 +280,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#3C4350",
   },
+
+  noteBox: { marginTop: 12, padding: 11, borderRadius: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E7EDF3" },
+  noteLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 0.6, color: "#1D9C6E", marginBottom: 4 },
+  noteText: { fontSize: 12.5, lineHeight: 18, color: "#4B5563" },
 
   buttonRow: {
     flexDirection: "row",

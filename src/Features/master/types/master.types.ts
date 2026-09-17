@@ -1,6 +1,7 @@
 export interface Doctor {
   id: string;
   doctor_name: string;
+  head_quarters?: string[] | null;
 }
 
 export interface Dealer {

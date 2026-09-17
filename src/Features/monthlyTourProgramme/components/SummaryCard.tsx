@@ -74,13 +74,7 @@ export default function SummaryCard({
           accent="#E08A2B"
         />
 
-        <StatCard
-          title="Customers"
-          value={summary.totalCustomers}
-          glyph="👥"
-          tint="#F1F0FF"
-          accent="#7C5CE0"
-        />
+        <View style={styles.spacerCard} />
       </View>
     </View>
   );
@@ -96,6 +90,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
+
+  spacerCard: { flex: 1, backgroundColor: "transparent" },
 
   statCard: {
     flex: 1,

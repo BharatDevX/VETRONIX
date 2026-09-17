@@ -36,6 +36,8 @@ interface MonthlyTourProgrammeStore {
     hq?: string | null;
   }) => Promise<void>;
 
+  updateProgramme: (id: string, payload: Partial<MonthlyTourProgramme>) => Promise<void>;
+
   addEntry: (
     entry: Omit<
       MonthlyTourEntry,
@@ -59,7 +61,6 @@ const emptySummary: MonthlyTourSummary = {
   plannedDays: 0,
   totalTours: 0,
   totalKm: 0,
-  totalCustomers: 0,
 };
 
 export const useMonthlyTourProgrammeStore =
@@ -136,6 +137,17 @@ export const useMonthlyTourProgrammeStore =
           saving: false,
           error: e.message,
         });
+        throw e;
+      }
+    },
+
+    async updateProgramme(id, payload) {
+      try {
+        set({ saving: true, error: null });
+        const programme = await MonthlyTourProgrammeService.updateProgramme(id, payload);
+        set({ programme, saving: false });
+      } catch (e: any) {
+        set({ saving: false, error: e.message });
         throw e;
       }
     },

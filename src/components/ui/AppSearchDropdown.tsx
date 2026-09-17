@@ -4,7 +4,7 @@ import { Dropdown } from "react-native-element-dropdown";
 
 interface Props {
   label: string;
-  data: any[];
+  data: readonly any[];
   value: any;
   labelField: string;
   valueField: string;

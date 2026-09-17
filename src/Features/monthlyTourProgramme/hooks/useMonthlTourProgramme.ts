@@ -13,6 +13,7 @@ export function useMonthlyTourProgramme() {
     error,
     loadProgramme,
     createProgramme,
+    updateProgramme,
     addEntry,
     updateEntry,
     deleteEntry,
@@ -28,6 +29,13 @@ export function useMonthlyTourProgramme() {
   );
 
   const create = useCallback(createProgramme, [createProgramme]);
+
+  const updateProgrammeDetails = useCallback(
+    async (id: string, payload: Partial<import("../types/monthlyTourProgramme.types").MonthlyTourProgramme>) => {
+      await updateProgramme(id, payload);
+    },
+    [updateProgramme],
+  );
 
   const add = useCallback(
     async (
@@ -88,6 +96,7 @@ export function useMonthlyTourProgramme() {
 
     refresh,
     create,
+    updateProgramme: updateProgrammeDetails,
     add,
     update,
     remove,

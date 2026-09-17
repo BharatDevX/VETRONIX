@@ -1,11 +1,16 @@
-export interface SecondarySale {
+export interface SecondarySaleForm {
+  dealer_id: string;
+  sale_date: string;
+  lines: import("./fieldSales.types").SaleLineItem[];
+}
 
-    dealer_name: string;
-
-    product_name: string;
-
-    total_quantity: number;
-
-    total_amount: number;
-
+export interface SecondarySaleReport {
+  id: string;
+  dealer_name: string;
+  product_name: string;
+  pack_size: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+  sale_date: string;
 }

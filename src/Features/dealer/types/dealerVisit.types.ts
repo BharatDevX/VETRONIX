@@ -12,9 +12,13 @@ export interface DealerVisit {
 
     location: string;
 
+    vehicle_type: string;
+
     discussion: string;
 
     outcome: string;
+
+    product_ids: string[];
 
     next_followup_date: string;
 
@@ -38,14 +42,20 @@ export interface DealerVisitForm {
 
     location: string;
 
+    vehicle_type: string;
+
     discussion: string;
 
     outcome: string;
+
+    product_ids: string[];
 
     next_followup_date: string;
 
     latitude?: number;
 
     longitude?: number;
+    dealer_name?: string;
+    dealer_is_local?: boolean;
 
 }

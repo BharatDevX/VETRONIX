@@ -11,7 +11,11 @@ export interface DoctorVisit {
 
   location: string;
 
+  vehicle_type: string;
+
   discussion: string;
+
+  outcome: string;
 
   remarks: string;
 
@@ -43,7 +47,11 @@ export interface DoctorVisitForm {
 
   location: string;
 
+  vehicle_type: string;
+
   discussion: string;
+
+  outcome: string;
 
   remarks: string;
 
@@ -54,4 +62,6 @@ export interface DoctorVisitForm {
   longitude?: number;
 
   product_ids: string[];
+  doctor_name?: string;
+  doctor_is_local?: boolean;
 }

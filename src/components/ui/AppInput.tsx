@@ -20,6 +20,7 @@ interface AppInputProps {
   multiline?: boolean;
   numberOfLines?: number;
   keyboardType?: KeyboardTypeOptions;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }
 export default function AppInput({
   label,
@@ -31,6 +32,7 @@ export default function AppInput({
   multiline = false,
   numberOfLines = 1,
   keyboardType = "default",
+  autoCapitalize = "sentences",
 }: AppInputProps) {
   return (
     <View style={styles.container}>
@@ -46,6 +48,7 @@ export default function AppInput({
     multiline={multiline}
     numberOfLines={numberOfLines}
     keyboardType={keyboardType}
+    autoCapitalize={autoCapitalize}
     style={[
         styles.input,
         multiline && styles.multiline,

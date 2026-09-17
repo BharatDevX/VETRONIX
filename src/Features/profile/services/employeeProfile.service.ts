@@ -6,6 +6,7 @@ export interface EmployeeProfile {
   full_name: string;
   designation: string;
   branch: string;
+  head_quarters: string[];
   mobile: string;
   email: string;
   dob: string | null;
@@ -62,7 +63,7 @@ export async function getEmployeeProfile(employeeId: string) {
   const { data, error } = await supabase
     .from("employees")
     .select(
-      "id, employee_id, full_name, designation, branch, mobile, email, dob, gender, profile_image"
+      "id, employee_id, full_name, designation, branch, head_quarters, mobile, email, dob, gender, profile_image"
     )
     .eq("id", employeeId)
     .single();
@@ -91,7 +92,7 @@ export async function updateEmployeeProfile(
     })
     .eq("id", employeeId)
     .select(
-      "id, employee_id, full_name, designation, branch, mobile, email, dob, gender, profile_image"
+      "id, employee_id, full_name, designation, branch, head_quarters, mobile, email, dob, gender, profile_image"
     )
     .single();
 

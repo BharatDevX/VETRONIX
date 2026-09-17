@@ -4,6 +4,7 @@ export interface DoctorWiseSaleReport {
   dealer_name: string;
   retailer_name: string;
   product_name: string;
+  pack_size: string;
   quantity: number;
   rate: number;
   amount: number;

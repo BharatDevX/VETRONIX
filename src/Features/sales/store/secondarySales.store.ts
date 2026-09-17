@@ -1,13 +1,13 @@
 import { create } from "zustand";
-import { SecondarySale } from "../types/secondarySales.types";
+import { SecondarySaleReport } from "../types/secondarySales.types";
 
 interface State {
 
-    reports: SecondarySale[];
+    reports: SecondarySaleReport[];
 
     loading: boolean;
 
-    setReports: (reports: SecondarySale[]) => void;
+    setReports: (reports: SecondarySaleReport[]) => void;
 
     setLoading: (loading: boolean) => void;
 

@@ -1,33 +1,37 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 
-import AppSearchDropdown from "../../../components/ui/AppSearchDropdown";
+import LocalPartyPicker from "../../../components/forms/LocalPartyPicker";
 import AppInput from "../../../components/ui/AppInput";
 import AppDatePicker from "../../../components/ui/AppDatePicker";
-import PrimaryButton from "../../../components/ui/PrimaryButton";
 
 interface Props {
   value: any;
   dealers: any[];
+  employeeId: string;
   onChange: (field: string, value: any) => void;
-  onDelete: () => void;
 }
 
 export default function DealerPlanRow({
   value,
   dealers,
+  employeeId,
   onChange,
-  onDelete,
 }: Props) {
   return (
     <View style={styles.card}>
-      <AppSearchDropdown
+      <LocalPartyPicker
+        employeeId={employeeId}
+        type="dealer"
         label="Dealer"
-        data={dealers}
+        masterData={dealers}
         labelField="dealer_name"
-        valueField="id"
         value={value.dealer_id}
-        onChange={(item) => onChange("dealer_id", item.id)}
+        onChange={(item) => {
+          onChange("dealer_id", item.id);
+          onChange("dealer_name", item.name ?? item.dealer_name ?? "");
+          onChange("dealer_is_local", Boolean(item.isLocal || String(item.id ?? "").startsWith("local-party:")));
+        }}
       />
 
       <AppInput
@@ -41,22 +45,12 @@ export default function DealerPlanRow({
         onChange={(date) => onChange("planned_date", date)}
       />
 
-      <AppDatePicker
-        label="Meeting Date"
-        value={value.meeting_date}
-        onChange={(date) => onChange("meeting_date", date)}
-      />
-
       <AppInput
-              label="Discussion"
+              label="Note"
 
               value={value.discussion}
               onChangeText={(text) => onChange("discussion", text)} placeholder={""}      />
 
-      <PrimaryButton
-        title="Delete Row"
-        onPress={onDelete}
-      />
     </View>
   );
 }
@@ -66,7 +60,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 15,
-    marginBottom: 20,
+    marginBottom: 4,
     elevation: 2,
   },
 });

@@ -87,6 +87,30 @@ async function loadOrCreateDraft(employeeId: string) {
 
     return report;
 }
+async function getCurrentMonthReportsWithEntries(employeeId: string) {
+    const start = new Date();
+    start.setDate(1);
+    const startDate = start.toISOString().split("T")[0];
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    const endDate = end.toISOString().split("T")[0];
+
+    const { data: reports, error } = await supabase
+        .from(PARENT_TABLE)
+        .select("*")
+        .eq("employee_id", employeeId)
+        .gte("report_date", startDate)
+        .lte("report_date", endDate)
+        .order("report_date", { ascending: false });
+
+    if (error) throw error;
+
+    const rows = reports ?? [];
+    return Promise.all(rows.map(async (report: any) => ({
+        ...report,
+        entries: await getEntries(report.id),
+    })));
+}
+
 async function getEntries(
     dailyProgressId: string
 ) {
@@ -210,6 +234,7 @@ export const dailyProgressService = {
     loadOrCreateDraft,
 
     getEntries,
+    getCurrentMonthReportsWithEntries,
 
     addEntry,
 

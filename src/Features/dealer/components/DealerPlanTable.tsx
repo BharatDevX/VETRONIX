@@ -6,19 +6,19 @@ import DealerPlanRow from "./DealerPlanRow";
 interface Props {
   rows: any[];
   dealers: any[];
+  employeeId: string;
   onChange: (
     index: number,
     field: string,
     value: any
   ) => void;
-  onDelete: (index: number) => void;
 }
 
 export default function DealerPlanTable({
   rows,
   dealers,
+  employeeId,
   onChange,
-  onDelete,
 }: Props) {
   return (
     <FlatList
@@ -29,7 +29,7 @@ export default function DealerPlanTable({
         <DealerPlanRow
           value={item}
           dealers={dealers}
-          onDelete={() => onDelete(index)}
+          employeeId={employeeId}
           onChange={(field, value) =>
             onChange(index, field, value)
           }

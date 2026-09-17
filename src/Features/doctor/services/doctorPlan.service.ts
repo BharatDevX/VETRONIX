@@ -1,39 +1,7 @@
 import dayjs from "dayjs";
-
 import { supabase } from "../../../services/supabase/supabase";
-
-import {
-  DoctorMeetingPlanForm,
-} from "../types/doctorPlan.types";
-
-async function replaceProductMappings(
-  table: string,
-  foreignKey: string,
-  recordId: string,
-  productIds: string[]
-) {
-  const uniqueProductIds = Array.from(
-    new Set((productIds ?? []).filter(Boolean))
-  );
-
-  const { error: deleteError } = await supabase
-    .from(table)
-    .delete()
-    .eq(foreignKey, recordId);
-
-  if (deleteError) throw deleteError;
-
-  if (uniqueProductIds.length === 0) return;
-
-  const rows = uniqueProductIds.map((product_id) => ({
-    [foreignKey]: recordId,
-    product_id,
-  }));
-
-  const { error: insertError } = await supabase.from(table).insert(rows);
-
-  if (insertError) throw insertError;
-}
+import { DoctorMeetingPlanForm } from "../types/doctorPlan.types";
+import { getLocalActivities, getLocalPartyById, isLocalPartyId, saveLocalActivity } from "../../../services/local/localParty.service";
 
 export async function getPlans(employeeId: string) {
   const month = dayjs().month() + 1;
@@ -48,13 +16,29 @@ export async function getPlans(employeeId: string) {
     .order("planned_date");
 
   if (error) throw error;
-
-  return data;
+  const local = await getLocalActivities(employeeId, "doctor", "meeting_plan");
+  return [...(data ?? []), ...local];
 }
 
 export async function createPlan(employeeId: string, form: DoctorMeetingPlanForm) {
   const month = dayjs().month() + 1;
   const year = dayjs().year();
+
+  if (isLocalPartyId(form.doctor_id)) {
+    const party = await getLocalPartyById(employeeId, "doctor", form.doctor_id);
+    if (!party) throw new Error("This local doctor is no longer available on this device.");
+    const data = await saveLocalActivity(employeeId, "doctor", "meeting_plan", {
+      doctor_id: form.doctor_id,
+      location: form.location,
+      planned_date: form.planned_date,
+      discussion: "",
+      reply: form.reply?.trim() ? form.reply.trim() : null,
+      month,
+      year,
+      is_submitted: true,
+    }, party.name);
+    return { data, isUpdate: false, isLocal: true };
+  }
 
   const { data: existing, error: existingError } = await supabase
     .from("doctor_meeting_plans")
@@ -66,19 +50,18 @@ export async function createPlan(employeeId: string, form: DoctorMeetingPlanForm
 
   if (existingError) throw existingError;
 
+  // discussion is retained in the DB for backward compatibility, but it is
+  // intentionally no longer collected in the employee UI.
   const payload = {
     employee_id: employeeId,
     doctor_id: form.doctor_id,
     location: form.location,
     planned_date: form.planned_date,
-    discussion: form.discussion,
+    discussion: "",
     reply: form.reply?.trim() ? form.reply.trim() : null,
     month,
     year,
   };
-
-  let savedRecord: any;
-  let isUpdate = false;
 
   if (existing?.id) {
     const { data, error } = await supabase
@@ -89,27 +72,15 @@ export async function createPlan(employeeId: string, form: DoctorMeetingPlanForm
       .single();
 
     if (error) throw error;
-
-    savedRecord = data;
-    isUpdate = true;
-  } else {
-    const { data, error } = await supabase
-      .from("doctor_meeting_plans")
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    savedRecord = data;
+    return { data, isUpdate: true };
   }
 
-  await replaceProductMappings(
-    "doctor_meeting_plan_products",
-    "plan_id",
-    savedRecord.id,
-    form.product_ids
-  );
+  const { data, error } = await supabase
+    .from("doctor_meeting_plans")
+    .insert(payload)
+    .select()
+    .single();
 
-  return { data: savedRecord, isUpdate };
+  if (error) throw error;
+  return { data, isUpdate: false };
 }

@@ -38,13 +38,17 @@ export interface MonthlyTourEntry {
 
   route_plan_details: string;
 
+  start_location: string | null;
+  end_location: string | null;
+  checkpoints: string[];
+
   total_km: number;
 
   travel_mode: string | null;
 
-  total_customer_plan: number;
-
   route_no: string | null;
+
+  note: string | null;
 
   sequence_no: number;
 
@@ -61,5 +65,4 @@ export interface MonthlyTourSummary {
   plannedDays: number;
   totalTours: number;
   totalKm: number;
-  totalCustomers: number;
 }

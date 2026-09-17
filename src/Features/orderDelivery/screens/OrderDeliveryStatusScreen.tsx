@@ -6,7 +6,9 @@ import ScreenHeader from "../../../components/ui/ScreenHeader";
 import AppCard from "../../../components/ui/AppCard";
 import { useAuthStore } from "../../auth/store/auth.store";
 import { useOrderDeliveries } from "../hooks/useOrderDeliveries";
+import dayjs from "dayjs";
 import { openOrderInvoice } from "../services/orderDelivery.service";
+import { generateOrderDeliveryPdf } from "../../../services/pdf/pdf.service";
 import type { EmployeeOrderDelivery } from "../types/orderDelivery.types";
 
 const money = (value: number) => `₹${Number(value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -89,11 +91,32 @@ export default function OrderDeliveryStatusScreen() {
 
   const totalOrdered = useMemo(() => orders.reduce((sum, order) => sum + order.sale.amount, 0), [orders]);
   const totalRemaining = useMemo(() => orders.reduce((sum, order) => sum + order.remainingAmount, 0), [orders]);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  async function generatePdf() {
+    if (!employee?.id || generatingPdf) return;
+    setGeneratingPdf(true);
+    try {
+      await generateOrderDeliveryPdf({
+        employeeName: employee.full_name ?? "",
+        monthLabel: dayjs().format("MMMM YYYY"),
+        records: orders.map(item => {
+          const last = item.deliveries[item.deliveries.length - 1];
+          return { orderDate:item.sale.sale_date, saleType:item.sale.sale_type, product:item.sale.product_name, doctor:item.sale.doctor_name, dealer:item.sale.dealer_name, orderValue:item.sale.amount, quantity:item.sale.quantity, rate:item.sale.rate, delivered:item.deliveredAmount, remaining:item.remainingAmount, status:item.deliveredAmount<=0?"Pending":item.remainingAmount<=0?"Fully Delivered":"Partially Delivered", lastDeliveryDate:last?.delivery_date ?? "", expectedDeliveryDate:last?.expected_delivery_date ?? "", remarks:last?.remarks ?? "" };
+        }),
+      });
+    } catch (e) {
+      Alert.alert("PDF Error", e instanceof Error ? e.message : "Unable to generate PDF.");
+    } finally { setGeneratingPdf(false); }
+  }
 
   return (
     <View style={styles.screen}>
       <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} />} contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <ScreenHeader title="Order Delivery Status" subtitle="Track deliveries and invoices for your orders" />
+        <Pressable style={styles.pdfButton} onPress={generatePdf} disabled={generatingPdf}>
+          {generatingPdf ? <ActivityIndicator color="#0877B9" /> : <FileText size={17} color="#0877B9" />}
+          <Text style={styles.pdfText}>{generatingPdf ? "Generating PDF…" : "Generate PDF"}</Text>
+        </Pressable>
         <View style={styles.statsRow}>
           <View style={styles.stat}><Text style={styles.label}>My Orders</Text><Text style={styles.statValue}>{orders.length}</Text></View>
           <View style={styles.stat}><Text style={styles.label}>Remaining</Text><Text style={styles.statValue}>{money(totalRemaining)}</Text></View>
@@ -137,6 +160,8 @@ const styles = StyleSheet.create({
   statusText: { color: "#376075", fontSize: 11, fontWeight: "800" },
   error: { color: "#C62828", fontWeight: "600" },
   empty: { color: "#8896A3", textAlign: "center", paddingVertical: 12 },
+  pdfButton: { flexDirection:"row", alignItems:"center", justifyContent:"center", gap:8, backgroundColor:"#FFFFFF", borderWidth:1, borderColor:"#CFE3EF", borderRadius:12, paddingVertical:11 },
+  pdfText: { color:"#0877B9", fontWeight:"800", fontSize:13 },
   footerNote: { textAlign: "center", color: "#96A4AF", fontSize: 12, marginTop: 4 },
   detailOverlay: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(6,28,45,0.38)", justifyContent: "flex-end" },
   detailPanel: { maxHeight: "88%", backgroundColor: "#F4F8FC", borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, gap: 14 },

@@ -9,8 +9,11 @@ export const DoctorVisitSchema = z.object({
     visit_time:z.string(),
 
     location:z.string().min(1),
+    vehicle_type:z.string().min(1),
 
     discussion:z.string().min(1),
+
+    outcome:z.string().min(1),
 
     remarks:z.string(),
 

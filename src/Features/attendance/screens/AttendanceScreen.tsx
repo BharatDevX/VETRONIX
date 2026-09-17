@@ -12,9 +12,7 @@ import {
 import dayjs from "dayjs";
 
 import AppCard from "../../../components/ui/AppCard";
-import AppInput from "../../../components/ui/AppInput";
 import PrimaryButton from "../../../components/ui/PrimaryButton";
-import AppRadioGroup from "../../../components/ui/AppRadioGroup";
 import ScreenHeader from "../../../components/ui/ScreenHeader";
 
 import { useAttendance } from "../hooks/useAttendance";
@@ -35,9 +33,6 @@ export default function AttendanceScreen() {
   // Reuses the exact same startWork() used by StartWorkScreen — same service
   // call, same duplicate-session guard, same background-tracking kickoff.
   const { startWork } = useWork(employee?.id ?? "");
-
-  const [status, setStatus] = useState("PRESENT");
-  const [remarks, setRemarks] = useState("");
 
   const [locationText, setLocationText] =
     useState("Detecting location...");
@@ -91,12 +86,10 @@ export default function AttendanceScreen() {
         `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
       );
 
-      await saveAttendance({
+      const savedAttendance = await saveAttendance({
         employee_id: employee.id,
         latitude,
         longitude,
-        status: status as any,
-        remarks,
       });
 
       // Attendance succeeded — automatically start today's work session using
@@ -106,14 +99,19 @@ export default function AttendanceScreen() {
       // duplicate session for today, and starts background tracking.
       let workStarted = false;
 
-      try {
-        const session = await startWork({ latitude, longitude });
-        workStarted = !!session;
-      } catch (workError) {
-        // Attendance itself already succeeded and must not be rolled back or
-        // reported as a failure just because work-session auto-start hit an
-        // edge case (e.g. today's work is already completed). Fall through
-        // to the plain success message below.
+      // Leave should not start a work session. Present and Half Day continue
+      // using the existing work-session/background-location functionality.
+      if (
+        savedAttendance.status === "PRESENT" ||
+        savedAttendance.status === "HALF_DAY"
+      ) {
+        try {
+          const session = await startWork({ latitude, longitude });
+          workStarted = !!session;
+        } catch (workError) {
+          // Attendance itself already succeeded; do not treat a work-session
+          // edge case as an attendance failure.
+        }
       }
 
       Alert.alert(
@@ -130,13 +128,13 @@ export default function AttendanceScreen() {
     }
   }
 
-  const statusMeta: Record<string, { label: string; color: string }> = {
-    PRESENT: { label: "Present", color: "#1D9C6E" },
-    LEAVE: { label: "Leave", color: "#E0562B" },
-    HALF_DAY: { label: "Half Day", color: "#C79A1E" },
-  };
-
-  const activeStatus = statusMeta[status] ?? statusMeta.PRESENT;
+  const activeStatus = todayAttendance
+    ? todayAttendance.status === "PRESENT"
+      ? { label: "Present", color: "#1D9C6E" }
+      : todayAttendance.status === "HALF_DAY"
+        ? { label: "Half Day", color: "#C79A1E" }
+        : { label: "Leave", color: "#E0562B" }
+    : { label: "Not Marked", color: "#94A3B8" };
 
   return (
     <ScrollView
@@ -193,68 +191,48 @@ export default function AttendanceScreen() {
           </View>
         </View>
 
-        {/* ---------- STATUS ---------- */}
+        {/* ---------- AUTOMATIC ATTENDANCE ---------- */}
         <AppCard>
           <View style={styles.sectionHeadRow}>
             <View style={styles.accentBar} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Attendance Status</Text>
+              <Text style={styles.cardTitle}>Automatic Attendance</Text>
               <Text style={styles.cardSubtitle}>
-                Select how today should be recorded
+                Your status is determined from the time you mark attendance.
               </Text>
             </View>
           </View>
 
-          <View style={{ marginTop: 14 }}>
-            <AppRadioGroup
-              value={status}
-              onChange={setStatus}
-              options={[
-                {
-                  label: "Present",
-                  value: "PRESENT",
-                },
-                {
-                  label: "Leave",
-                  value: "LEAVE",
-                },
-                {
-                  label: "Half Day",
-                  value: "HALF_DAY",
-                },
-              ]}
-            />
-          </View>
-        </AppCard>
-
-        {/* ---------- REMARKS ---------- */}
-        <AppCard>
-          <View style={styles.sectionHeadRow}>
-            <View style={styles.accentBar} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Remarks</Text>
-              <Text style={styles.cardSubtitle}>Optional note for today</Text>
+          <View style={styles.timeRuleCard}>
+            <View style={styles.ruleRow}>
+              <View style={[styles.ruleDot, { backgroundColor: "#16A34A" }]} />
+              <Text style={styles.ruleText}>Before 10:00 AM</Text>
+              <Text style={styles.ruleValue}>Present</Text>
             </View>
-          </View>
 
-          <View style={{ marginTop: 14 }}>
-            <AppInput
-              label=""
-              value={remarks}
-              onChangeText={setRemarks}
-              placeholder="Add a remark (optional)"
-            />
+            <View style={styles.ruleRow}>
+              <View style={[styles.ruleDot, { backgroundColor: "#EAB308" }]} />
+              <Text style={styles.ruleText}>10:00 AM – 1:59 PM</Text>
+              <Text style={styles.ruleValue}>Half Day</Text>
+            </View>
+
+            <View style={[styles.ruleRow, styles.ruleRowLast]}>
+              <View style={[styles.ruleDot, { backgroundColor: "#DC2626" }]} />
+              <Text style={styles.ruleText}>2:00 PM onward</Text>
+              <Text style={styles.ruleValue}>Leave</Text>
+            </View>
           </View>
         </AppCard>
 
         <View style={styles.submitWrap}>
           <PrimaryButton
-            title="Mark Attendance"
+            title={todayAttendance ? "Attendance Already Marked" : "Mark Attendance"}
             loading={loading}
             onPress={handleAttendance}
+            disabled={!!todayAttendance}
           />
           <Text style={styles.helperNote}>
-            Your live location is captured when you mark attendance.
+            Location is captured automatically. No manual status selection is required.
           </Text>
         </View>
       </Animated.View>
@@ -413,6 +391,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+
+  timeRuleCard: {
+    marginTop: 14,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+
+  ruleRow: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+
+  ruleRowLast: {
+    borderBottomWidth: 0,
+  },
+
+  ruleDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+
+  ruleText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+
+  ruleValue: {
+    fontSize: 12.5,
+    color: "#16324F",
+    fontWeight: "800",
   },
 
   submitWrap: {

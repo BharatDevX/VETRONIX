@@ -29,6 +29,7 @@ import TourEntryForm from "../components/TourEntryForm";
 
 import { MonthlyTourEntry } from "../types/monthlyTourProgramme.types";
 import { useMonthlyTourProgrammeStore } from "../store/monthlyTouProgramme.store";
+import { generateMonthlyTourProgrammePdf } from "../../../services/pdf/pdf.service";
 
 export default function MonthlyTourProgrammeScreen() {
   const { employee } = useAuthStore();
@@ -45,6 +46,7 @@ export default function MonthlyTourProgrammeScreen() {
     submit,
     canEdit,
     create,
+    updateProgramme,
   } = useMonthlyTourProgramme();
 
   const [search, setSearch] = useState("");
@@ -60,9 +62,32 @@ export default function MonthlyTourProgrammeScreen() {
 
   const [editingEntry, setEditingEntry] =
     useState<MonthlyTourEntry | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
+  async function handleGeneratePdf() {
+    if (generatingPdf) return;
+    if (!entries.length) {
+      Alert.alert("Generate PDF", "Add at least one tour entry before generating the PDF.");
+      return;
+    }
+    setGeneratingPdf(true);
+    try {
+      await generateMonthlyTourProgrammePdf({
+        employeeName: employee?.full_name ?? "",
+        programme,
+        entries,
+      });
+    } catch (error) {
+      Alert.alert("PDF Error", error instanceof Error ? error.message : "Unable to generate the PDF.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
+  const currentMonth = selectedMonth;
+  const currentYear = selectedYear;
 
   
 useFocusEffect(
@@ -252,10 +277,9 @@ useFocusEffect(
     contentStyle={styles.buttonContent}
     labelStyle={styles.buttonLabel}
     textColor="#3C4350"
-    onPress={() => {
-      // TODO:
-      // Generate PDF
-    }}
+    onPress={handleGeneratePdf}
+    loading={generatingPdf}
+    disabled={generatingPdf}
   >
     Generate PDF
   </Button>
@@ -276,6 +300,8 @@ useFocusEffect(
       <TourEntryForm
   visible={modalVisible}
   entry={editingEntry}
+  programmeMonth={programme?.month ?? currentMonth}
+  programmeYear={programme?.year ?? currentYear}
   onClose={() => {
     setModalVisible(false);
     setEditingEntry(null);
@@ -295,50 +321,54 @@ useFocusEffect(
   return;
 }
 
+    if (editingEntry && programme && (data.month !== programme.month || data.year !== programme.year)) {
+      Alert.alert("Monthly Tour Programme", "Month and year cannot be changed while editing an existing tour entry.");
+      return;
+    }
+
+    const { month: requestedMonth, year: requestedYear, ...entryData } = data;
     let currentProgramme = programme;
 
-    if (!currentProgramme) {
-      await refresh(employee.id, currentMonth, currentYear);
-      currentProgramme = programme;
+    if (!currentProgramme || currentProgramme.month !== requestedMonth || currentProgramme.year !== requestedYear) {
+      await refresh(employee.id, requestedMonth, requestedYear);
+      currentProgramme = useMonthlyTourProgrammeStore.getState().programme;
     }
 
     if (!currentProgramme) {
       await create({
-  employee_id: employee.id,
-  month: currentMonth,
-  year: currentYear,
-});
-
-await refresh(
-  employee.id,
-  currentMonth,
-  currentYear
-);
-
-currentProgramme =
-  useMonthlyTourProgrammeStore
-    .getState()
-    .programme;
+        employee_id: employee.id,
+        month: requestedMonth,
+        year: requestedYear,
+      });
+      await refresh(employee.id, requestedMonth, requestedYear);
+      currentProgramme = useMonthlyTourProgrammeStore.getState().programme;
+    } else if (canEdit && (currentProgramme.month !== data.month || currentProgramme.year !== data.year)) {
+      await updateProgramme(currentProgramme.id, { month: requestedMonth, year: requestedYear });
+      await refresh(employee.id, requestedMonth, requestedYear);
+      currentProgramme = useMonthlyTourProgrammeStore.getState().programme;
     }
+
+    setSelectedMonth(requestedMonth);
+    setSelectedYear(requestedYear);
 
     if (!currentProgramme) {
       return;
     }
 
     if (editingEntry) {
-      await update(editingEntry.id, data);
+      await update(editingEntry.id, entryData);
     } else {
       try {
   console.log("Saving Tour", {
     programme_id: currentProgramme.id,
     sequence_no: entries.length + 1,
-    ...data,
+    ...entryData,
   });
 
   await add({
     programme_id: currentProgramme.id,
     sequence_no: entries.length + 1,
-    ...data,
+    ...entryData,
   });
 
   console.log("SUCCESS");

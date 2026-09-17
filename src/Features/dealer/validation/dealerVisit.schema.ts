@@ -9,10 +9,13 @@ export const DealerVisitSchema = z.object({
     visit_time: z.string(),
 
     location: z.string().min(1),
+    vehicle_type: z.string().min(1),
 
     discussion: z.string().min(1),
 
     outcome: z.string().min(1),
+
+    product_ids: z.array(z.string()),
 
     next_followup_date: z.string()
 

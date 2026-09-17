@@ -37,6 +37,27 @@ function getTodayDate() {
   return `${year}-${month}-${day}`;
 }
 
+function getCurrentMonthRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  const start = new Date(year, month, 1);
+  const nextMonth = new Date(year, month + 1, 1);
+
+  const formatDate = (date: Date) => {
+    const y = date.getFullYear();
+    const m = `${date.getMonth() + 1}`.padStart(2, "0");
+    const d = `${date.getDate()}`.padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  return {
+    startDate: formatDate(start),
+    endDate: formatDate(nextMonth),
+  };
+}
+
 function toFriendlyError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
 
@@ -107,6 +128,26 @@ export const workService = {
     return getPreferredSession(sessions);
   },
 
+  async getCurrentMonthTotalKm(employeeId: string): Promise<number> {
+    const { startDate, endDate } = getCurrentMonthRange();
+
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("total_km")
+      .eq("employee_id", employeeId)
+      .gte("work_date", startDate)
+      .lt("work_date", endDate);
+
+    if (error) throw toFriendlyError(error);
+
+    const total = (data ?? []).reduce((sum, session) => {
+      const km = Number(session.total_km ?? 0);
+      return sum + (Number.isFinite(km) ? km : 0);
+    }, 0);
+
+    return Number(total.toFixed(2));
+  },
+
   async startWork(employeeId: string, form: StartWorkForm): Promise<WorkSession> {
     const today = getTodayDate();
     const sessions = await this.getTodaySessions(employeeId);
@@ -144,7 +185,7 @@ export const workService = {
     await locationTrackingService.startTracking(employeeId, {
       latitude: form.latitude,
       longitude: form.longitude,
-    });
+    }, (data as WorkSession).id);
 
     return data as WorkSession;
   },
@@ -167,36 +208,41 @@ export const workService = {
       throw new Error("Unable to calculate distance without start location.");
     }
 
-    const totalKm = parseFloat(
-      calculateDistance(
-        activeSession.start_latitude,
-        activeSession.start_longitude,
-        form.latitude,
-        form.longitude
-      ).toFixed(2)
+    // Record the final GPS point first. The journey total is the sum of the
+    // recorded GPS segments, so it matches the live journey shown in Admin.
+    await locationTrackingService.stopTracking(employeeId, {
+      latitude: form.latitude,
+      longitude: form.longitude,
+    }, activeSession.id);
+
+    const { data: lastPoint } = await supabase
+      .from("employee_location_history")
+      .select("cumulative_km")
+      .eq("employee_id", employeeId)
+      .eq("session_id", activeSession.id)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Fallback to the original straight-line calculation if the history table
+    // is temporarily unavailable or has no point for this session.
+    const fallbackKm = calculateDistance(
+      activeSession.start_latitude, activeSession.start_longitude,
+      form.latitude, form.longitude
     );
+    const totalKm = parseFloat(Number(lastPoint?.cumulative_km ?? fallbackKm).toFixed(2));
 
     const { data, error: updateError } = await supabase
       .from(TABLE)
       .update({
-        end_time: new Date().toISOString(),
-        end_meter: null,
-        end_latitude: form.latitude,
-        end_longitude: form.longitude,
-        total_km: totalKm,
-        status: "completed",
+        end_time: new Date().toISOString(), end_meter: null, end_latitude: form.latitude,
+        end_longitude: form.longitude, total_km: totalKm, status: "completed",
       })
       .eq("id", activeSession.id)
       .select()
       .single();
 
     if (updateError) throw toFriendlyError(updateError);
-
-    await locationTrackingService.stopTracking(employeeId, {
-      latitude: form.latitude,
-      longitude: form.longitude,
-    });
-
     return data as WorkSession;
   },
 };

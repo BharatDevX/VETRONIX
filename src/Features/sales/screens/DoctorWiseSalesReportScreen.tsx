@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import {
+  Pressable,
   ScrollView,
   RefreshControl,
   Text,
@@ -9,6 +10,10 @@ import {
   Easing,
 } from "react-native";
 
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../../navigation/AppNavigator";
+
 import ScreenHeader from "../../../components/ui/ScreenHeader";
 import AppCard from "../../../components/ui/AppCard";
 
@@ -17,6 +22,7 @@ import { useDoctorWiseSales } from "../hooks/useDoctorWiseSales";
 
 export default function DoctorWiseSalesReportScreen() {
 
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { employee } = useAuthStore();
 
     const {
@@ -109,6 +115,13 @@ export default function DoctorWiseSalesReportScreen() {
                 subtitle="Sales broken down by doctor"
 
             />
+
+            <Pressable
+                style={styles.addButton}
+                onPress={() => navigation.navigate("DoctorWiseSaleEntry")}
+            >
+                <Text style={styles.addButtonText}>+ Record Doctor Wise Sale</Text>
+            </Pressable>
 
             <Animated.View
                 style={{
@@ -295,6 +308,16 @@ export default function DoctorWiseSalesReportScreen() {
 }
 
 const styles=StyleSheet.create({
+  addButton: {
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: "#0F76AE",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  addButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+
 
     screen: {
         backgroundColor: "#F5F7FA",

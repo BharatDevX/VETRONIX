@@ -12,6 +12,7 @@ export interface Employee {
   full_name: string;
   designation: string;
   branch: string;
+  head_quarters?: string[] | null;
 
   mobile: string;
   email: string;

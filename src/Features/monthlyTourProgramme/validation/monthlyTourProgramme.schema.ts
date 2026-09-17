@@ -46,6 +46,12 @@ export const monthlyTourEntrySchema = z.object({
     .min(1, "Route details are required")
     .max(500),
 
+  start_location: z.string().min(1, "Start location is required"),
+
+  end_location: z.string().min(1, "End location is required"),
+
+  checkpoints: z.array(z.string()).default([]),
+
   total_km: z
     .number()
     .min(0, "KM cannot be negative")
@@ -53,13 +59,9 @@ export const monthlyTourEntrySchema = z.object({
 
   travel_mode: z.string().nullable().optional(),
 
-  total_customer_plan: z
-    .number()
-    .int()
-    .min(0, "Customer count cannot be negative")
-    .max(500),
-
   route_no: z.string().nullable().optional(),
+
+  note: z.string().max(1000).nullable().optional(),
 
   sequence_no: z
     .number()

@@ -190,10 +190,6 @@ if (error) {
         0
       ),
 
-      totalCustomers: entries.reduce(
-        (sum, e) => sum + e.total_customer_plan,
-        0
-      ),
     };
   }
 }

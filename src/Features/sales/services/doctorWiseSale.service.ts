@@ -1,312 +1,64 @@
 import { supabase } from "../../../services/supabase/supabase";
 import { DoctorWiseSaleReport } from "../types/doctorWiseSales.types";
 
-interface SaleRow {
-  id: string;
-  employee_id: string;
-  doctor_id: string | null;
-  dealer_id: string | null;
-  retailer_id: string | null;
-  product_id: string | null;
-  quantity: number | null;
-  rate: number | null;
-  amount: number | null;
-  sale_date: string;
-  created_at: string | null;
-}
+interface ParentRow { id: string; doctor_id: string; dealer_id: string; retailer_id: string | null; sale_date: string; }
+interface LineRow { id: string; parent_id: string; product_id: string; pack_size: string | null; quantity: number | null; rate: number | null; amount: number | null; }
 
-interface DoctorRow {
-  id: string;
-  doctor_name: string | null;
-}
+export async function getDoctorWiseSales(employeeId: string): Promise<DoctorWiseSaleReport[]> {
+  if (!employeeId) return [];
 
-interface DealerRow {
-  id: string;
-  dealer_name: string | null;
-}
+  const { data: parents, error: parentError } = await supabase
+    .from("doctor_wise_sales")
+    .select("id, doctor_id, dealer_id, retailer_id, sale_date")
+    .eq("employee_id", employeeId)
+    .order("sale_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (parentError) throw parentError;
 
-interface RetailerRow {
-  id: string;
-  retailer_name: string | null;
-}
+  const parentRows = (parents ?? []) as ParentRow[];
+  if (!parentRows.length) return [];
 
-interface ProductRow {
-  id: string;
-  product_name: string | null;
-}
+  const parentIds = parentRows.map((row) => row.id);
+  const doctorIds = [...new Set(parentRows.map((row) => row.doctor_id))];
+  const dealerIds = [...new Set(parentRows.map((row) => row.dealer_id))];
+  const retailerIds = [...new Set(parentRows.map((row) => row.retailer_id).filter((id): id is string => Boolean(id)))];
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
+  const [{ data: lines, error: lineError }, { data: doctors, error: doctorError }, { data: dealers, error: dealerError }, { data: retailers, error: retailerError }] = await Promise.all([
+    supabase.from("doctor_wise_sale_products").select("id, parent_id, product_id, pack_size, quantity, rate, amount").in("parent_id", parentIds),
+    supabase.from("doctors").select("id, doctor_name").in("id", doctorIds),
+    supabase.from("dealers").select("id, dealer_name").in("id", dealerIds),
+    retailerIds.length ? supabase.from("retailers").select("id, retailer_name").in("id", retailerIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (lineError) throw lineError;
+  if (doctorError) throw doctorError;
+  if (dealerError) throw dealerError;
+  if (retailerError) throw retailerError;
 
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error
-  ) {
-    return String(
-      (error as { message?: string }).message ?? ""
-    );
-  }
+  const productIds = [...new Set(((lines ?? []) as LineRow[]).map((row) => row.product_id))];
+  const { data: products, error: productError } = productIds.length
+    ? await supabase.from("products").select("id, product_name").in("id", productIds)
+    : { data: [], error: null };
+  if (productError) throw productError;
 
-  return "";
-}
+  const doctorMap = new Map<string, string>((doctors ?? []).map((row: any) => [row.id, row.doctor_name ?? ""]));
+  const dealerMap = new Map<string, string>((dealers ?? []).map((row: any) => [row.id, row.dealer_name ?? ""]));
+  const retailerMap = new Map<string, string>((retailers ?? []).map((row: any) => [row.id, row.retailer_name ?? ""]));
+  const productMap = new Map<string, string>((products ?? []).map((row: any) => [row.id, row.product_name ?? ""]));
+  const parentMap = new Map(parentRows.map((row) => [row.id, row]));
 
-function toFriendlyError(error: unknown): Error {
-  const message = getErrorMessage(error);
-
-  console.error("getDoctorWiseSales Supabase error:", error);
-  console.error("getDoctorWiseSales error message:", message);
-
-  if (
-    message.toLowerCase().includes("network") ||
-    message.toLowerCase().includes("fetch") ||
-    message.toLowerCase().includes("timeout")
-  ) {
-    return new Error(
-      "Network issue. Please check your connection and try again."
-    );
-  }
-
-  return new Error(
-    "Unable to load the doctor sales report right now."
-  );
-}
-
-export async function getDoctorWiseSales(
-  employeeId: string
-): Promise<DoctorWiseSaleReport[]> {
-  if (!employeeId) {
-    return [];
-  }
-
-  try {
-    // --------------------------------------------------
-    // 1. GET DOCTOR SALES
-    // --------------------------------------------------
-
-    const { data: salesData, error: salesError } = await supabase
-      .from("sales")
-      .select(
-        `
-        id,
-        employee_id,
-        doctor_id,
-        dealer_id,
-        retailer_id,
-        product_id,
-        quantity,
-        rate,
-        amount,
-        sale_date,
-        created_at
-      `
-      )
-      .eq("employee_id", employeeId)
-      .eq("sale_type", "doctor")
-      .not("doctor_id", "is", null)
-      .order("sale_date", {
-        ascending: false,
-      })
-      .order("created_at", {
-        ascending: false,
-      });
-
-    if (salesError) {
-      throw salesError;
-    }
-
-    const sales = (salesData ?? []) as SaleRow[];
-
-    // No sales = valid empty result
-    if (sales.length === 0) {
-      return [];
-    }
-
-    // --------------------------------------------------
-    // 2. COLLECT UNIQUE IDs
-    // --------------------------------------------------
-
-    const doctorIds = Array.from(
-      new Set(
-        sales
-          .map((sale) => sale.doctor_id)
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-
-    const dealerIds = Array.from(
-      new Set(
-        sales
-          .map((sale) => sale.dealer_id)
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-
-    const retailerIds = Array.from(
-      new Set(
-        sales
-          .map((sale) => sale.retailer_id)
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-
-    const productIds = Array.from(
-      new Set(
-        sales
-          .map((sale) => sale.product_id)
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-
-    // --------------------------------------------------
-    // 3. LOAD MASTER DATA IN PARALLEL
-    // --------------------------------------------------
-
-    const [
-      doctorsResult,
-      dealersResult,
-      retailersResult,
-      productsResult,
-    ] = await Promise.all([
-      doctorIds.length > 0
-        ? supabase
-            .from("doctors")
-            .select("id, doctor_name")
-            .in("id", doctorIds)
-        : Promise.resolve({
-            data: [],
-            error: null,
-          }),
-
-      dealerIds.length > 0
-        ? supabase
-            .from("dealers")
-            .select("id, dealer_name")
-            .in("id", dealerIds)
-        : Promise.resolve({
-            data: [],
-            error: null,
-          }),
-
-      retailerIds.length > 0
-        ? supabase
-            .from("retailers")
-            .select("id, retailer_name")
-            .in("id", retailerIds)
-        : Promise.resolve({
-            data: [],
-            error: null,
-          }),
-
-      productIds.length > 0
-        ? supabase
-            .from("products")
-            .select("id, product_name")
-            .in("id", productIds)
-        : Promise.resolve({
-            data: [],
-            error: null,
-          }),
-    ]);
-
-    // --------------------------------------------------
-    // 4. CHECK MASTER DATA ERRORS
-    // --------------------------------------------------
-
-    if (doctorsResult.error) {
-      throw doctorsResult.error;
-    }
-
-    if (dealersResult.error) {
-      throw dealersResult.error;
-    }
-
-    if (retailersResult.error) {
-      throw retailersResult.error;
-    }
-
-    if (productsResult.error) {
-      throw productsResult.error;
-    }
-
-    // --------------------------------------------------
-    // 5. CREATE LOOKUP MAPS
-    // --------------------------------------------------
-
-    const doctorMap = new Map<string, string>();
-
-    for (const doctor of (doctorsResult.data ?? []) as DoctorRow[]) {
-      doctorMap.set(
-        doctor.id,
-        doctor.doctor_name ?? ""
-      );
-    }
-
-    const dealerMap = new Map<string, string>();
-
-    for (const dealer of (dealersResult.data ?? []) as DealerRow[]) {
-      dealerMap.set(
-        dealer.id,
-        dealer.dealer_name ?? ""
-      );
-    }
-
-    const retailerMap = new Map<string, string>();
-
-    for (
-      const retailer of (retailersResult.data ?? []) as RetailerRow[]
-    ) {
-      retailerMap.set(
-        retailer.id,
-        retailer.retailer_name ?? ""
-      );
-    }
-
-    const productMap = new Map<string, string>();
-
-    for (
-      const product of (productsResult.data ?? []) as ProductRow[]
-    ) {
-      productMap.set(
-        product.id,
-        product.product_name ?? ""
-      );
-    }
-
-    // --------------------------------------------------
-    // 6. BUILD FINAL REPORT
-    // --------------------------------------------------
-
-    return sales.map((sale) => ({
-      id: sale.id,
-
-      doctor_name: sale.doctor_id
-        ? doctorMap.get(sale.doctor_id) ?? ""
-        : "",
-
-      dealer_name: sale.dealer_id
-        ? dealerMap.get(sale.dealer_id) ?? ""
-        : "",
-
-      retailer_name: sale.retailer_id
-        ? retailerMap.get(sale.retailer_id) ?? ""
-        : "",
-
-      product_name: sale.product_id
-        ? productMap.get(sale.product_id) ?? ""
-        : "",
-
-      quantity: Number(sale.quantity ?? 0),
-
-      rate: Number(sale.rate ?? 0),
-
-      amount: Number(sale.amount ?? 0),
-
-      sale_date: sale.sale_date,
-    }));
-  } catch (error) {
-    throw toFriendlyError(error);
-  }
+  return ((lines ?? []) as LineRow[]).map((line) => {
+    const parent = parentMap.get(line.parent_id);
+    return {
+      id: line.id,
+      doctor_name: parent ? doctorMap.get(parent.doctor_id) ?? "" : "",
+      dealer_name: parent ? dealerMap.get(parent.dealer_id) ?? "" : "",
+      retailer_name: parent?.retailer_id ? retailerMap.get(parent.retailer_id) ?? "" : "",
+      product_name: productMap.get(line.product_id) ?? "",
+      pack_size: line.pack_size ?? "",
+      quantity: Number(line.quantity ?? 0),
+      rate: Number(line.rate ?? 0),
+      amount: Number(line.amount ?? 0),
+      sale_date: parent?.sale_date ?? "",
+    };
+  });
 }

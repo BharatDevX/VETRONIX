@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   ActivityIndicator,
@@ -15,6 +17,9 @@ import Colors from "../../../theme/color";
 import ScreenHeader from "../../../components/ui/ScreenHeader";
 import AppInput from "../../../components/ui/AppInput";
 import PrimaryButton from "../../../components/ui/PrimaryButton";
+import { Button as PaperButton } from "react-native-paper";
+import { generateDailyProgressPdf } from "../../../services/pdf/pdf.service";
+import { dailyProgressService } from "../services/dailyProgress.service";
 
 import ProgressRow, {
   PartyOption,
@@ -36,18 +41,23 @@ export default function DailyProgressScreen() {
     loading,
     loadToday,
     createEntry,
-    updateEntry,
-    deleteEntry,
-    saveDraft,
-    submit,
-    refresh,
   } = useDailyProgress();
 
   const [saving, setSaving] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [dealers, setDealers] = useState<any[]>([]);
-  const [rows, setRows] = useState<ProgressRowValue[]>([]);
-  const [removedRowIds, setRemovedRowIds] = useState<string[]>([]);
+  const [formRow, setFormRow] = useState<ProgressRowValue>({
+    id: undefined,
+    doctor_id: null,
+    dealer_id: null,
+    party_type: "doctor",
+    party_name: "",
+    contact_person: "",
+    discussion: "",
+    reply: "",
+    pob_amount: "",
+  });
 
   const isReadOnly = progress?.status === "submitted";
 
@@ -58,22 +68,6 @@ export default function DailyProgressScreen() {
 
     void loadInitial();
   }, [employee?.id]);
-
-  useEffect(() => {
-    setRows(
-      entries.map((entry: DailyProgressEntry) => ({
-        id: entry.id,
-        doctor_id: entry.doctor_id,
-        dealer_id: entry.dealer_id,
-        party_type: entry.party_type,
-        party_name: "",
-        contact_person: entry.contact_person ?? "",
-        discussion: entry.discussion ?? "",
-        reply: entry.reply ?? "",
-        pob_amount: entry.pob_amount != null ? String(entry.pob_amount) : "",
-      }))
-    );
-  }, [entries]);
 
   async function loadInitial() {
     if (!employee) {
@@ -112,45 +106,6 @@ export default function DailyProgressScreen() {
     ];
   }, [doctors, dealers]);
 
-  function handleAddRow() {
-    if (isReadOnly) {
-      return;
-    }
-
-    setRows((prev) => [
-      ...prev,
-      {
-        id: undefined,
-        doctor_id: null,
-        dealer_id: null,
-        party_type: "doctor",
-        party_name: "",
-        contact_person: "",
-        discussion: "",
-        reply: "",
-        pob_amount: "",
-      },
-    ]);
-  }
-
-  function handleDeleteRow(index: number) {
-    if (isReadOnly) {
-      return;
-    }
-
-    const rowToDelete = rows[index];
-
-    if (rowToDelete?.id) {
-      setRemovedRowIds((prev) => [...prev, rowToDelete.id as string]);
-    }
-
-    setRows((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
-  }
-
-  function handleRowChange(index: number, value: ProgressRowValue) {
-    setRows((prev) => prev.map((row, rowIndex) => (rowIndex === index ? value : row)));
-  }
-
   function buildEntryPayload(row: ProgressRowValue) {
     return {
       party_type: row.party_type,
@@ -163,108 +118,79 @@ export default function DailyProgressScreen() {
     };
   }
 
-  async function persistRows() {
-    const nextRows = [...rows];
-
-    for (let index = 0; index < nextRows.length; index += 1) {
-      const row = nextRows[index];
-      const shouldDelete = row.id ? removedRowIds.includes(row.id) : false;
-
-      if (shouldDelete) {
-        continue;
-      }
-
-      if (row.id) {
-        const updated = (await updateEntry(row.id, buildEntryPayload(row))) as DailyProgressEntry | undefined;
-        nextRows[index] = {
-          ...row,
-          id: updated?.id ?? row.id,
-          doctor_id: updated?.doctor_id ?? row.doctor_id,
-          dealer_id: updated?.dealer_id ?? row.dealer_id,
-          party_type: updated?.party_type ?? row.party_type,
-          contact_person: updated?.contact_person ?? row.contact_person,
-          discussion: updated?.discussion ?? row.discussion,
-          reply: updated?.reply ?? row.reply,
-          pob_amount: updated?.pob_amount != null ? String(updated.pob_amount) : row.pob_amount,
-        };
-      } else {
-        const created = (await createEntry({
-          ...buildEntryPayload(row),
-          daily_progress_id: progress?.id ?? "",
-          serial_no: 1,
-        } as DailyProgressEntry)) as DailyProgressEntry | undefined;
-
-        nextRows[index] = {
-          ...row,
-          id: created?.id,
-          doctor_id: created?.doctor_id ?? row.doctor_id,
-          dealer_id: created?.dealer_id ?? row.dealer_id,
-          party_type: created?.party_type ?? row.party_type,
-          contact_person: created?.contact_person ?? row.contact_person,
-          discussion: created?.discussion ?? row.discussion,
-          reply: created?.reply ?? row.reply,
-          pob_amount: created?.pob_amount != null ? String(created.pob_amount) : row.pob_amount,
-        };
-      }
-    }
-
-    for (const removedId of removedRowIds) {
-      if (removedId) {
-        await deleteEntry(removedId);
-      }
-    }
-
-    setRows(nextRows);
-    setRemovedRowIds([]);
-  }
-
-  async function handleSaveDraft() {
-    if (isReadOnly) {
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      await persistRows();
-      await saveDraft("");
-      Alert.alert("Success", "Draft Saved Successfully");
-    } catch (error: any) {
-      Alert.alert("Error", error?.message || "Unable to save draft.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSubmit() {
-    if (isReadOnly) {
-      return;
-    }
-
-    const hasRows = rows.length > 0;
-    const isValid = rows.every((row) => {
-      const hasParty = Boolean(row.party_type && (row.doctor_id || row.dealer_id));
-      const hasDiscussion = Boolean(row.discussion?.trim());
-      const hasReply = Boolean(row.reply?.trim());
-      const hasPobAmount = Boolean(row.pob_amount?.trim());
-
-      return hasRows && hasParty && hasDiscussion && hasReply && hasPobAmount;
+  function resetForm() {
+    setFormRow({
+      id: undefined,
+      doctor_id: null,
+      dealer_id: null,
+      party_type: "doctor",
+      party_name: "",
+      contact_person: "",
+      discussion: "",
+      reply: "",
+      pob_amount: "",
     });
+  }
 
-    if (!hasRows || !isValid) {
-      Alert.alert("Validation Error", "Please complete all row details before submitting.");
+  async function handleGeneratePdf() {
+    if (generatingPdf || !employee) return;
+
+    setGeneratingPdf(true);
+    try {
+      const reports = await dailyProgressService.getCurrentMonthReportsWithEntries(employee.id);
+      const doctorMap = new Map(doctors.map((doctor: any) => [doctor.id, doctor.doctor_name ?? ""]));
+      const dealerMap = new Map(dealers.map((dealer: any) => [dealer.id, dealer.dealer_name ?? ""]));
+
+      await generateDailyProgressPdf({
+        employeeName: employee.full_name ?? "",
+        monthLabel: dayjs().format("MMMM YYYY"),
+        reports: reports.map((report: any) => ({
+          reportDate: report.report_date ?? "",
+          totalKm: report.total_km ?? 0,
+          status: report.status ?? "draft",
+          remarks: report.remarks ?? "",
+          entries: (report.entries ?? []).map((entry: any) => ({
+            serialNo: entry.serial_no,
+            partyType: entry.party_type,
+            partyName: entry.party_type === "doctor"
+              ? doctorMap.get(entry.doctor_id) ?? "Unknown Doctor"
+              : dealerMap.get(entry.dealer_id) ?? "Unknown Dealer",
+            contactPerson: entry.contact_person ?? "",
+            discussion: entry.discussion ?? "",
+            reply: entry.reply ?? "",
+            pobAmount: entry.pob_amount ?? 0,
+          })),
+        })),
+      });
+    } catch (error) {
+      Alert.alert("PDF Error", error instanceof Error ? error.message : "Unable to generate the monthly Daily Progress PDF.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
+  async function handleSubmitVisit() {
+    if (isReadOnly || saving) {
+      return;
+    }
+
+    const hasParty = Boolean(formRow.party_type && (formRow.doctor_id || formRow.dealer_id));
+    const hasDiscussion = Boolean(formRow.discussion?.trim());
+    const hasReply = Boolean(formRow.reply?.trim());
+    if (!hasParty || !hasDiscussion || !hasReply) {
+      Alert.alert("Validation Error", "Please complete all visit details before submitting.");
       return;
     }
 
     setSaving(true);
 
     try {
-      await persistRows();
-      await submit();
-      await refresh();
-      Alert.alert("Success", "Report Submitted Successfully");
+      await createEntry(buildEntryPayload(formRow) as DailyProgressEntry);
+      // The submitted visit is now safely stored in Supabase.
+      // Immediately clear the form so the employee can enter the next visit.
+      resetForm();
     } catch (error: any) {
-      Alert.alert("Error", error?.message || "Unable to submit report.");
+      Alert.alert("Error", error?.message || "Unable to submit visit.");
     } finally {
       setSaving(false);
     }
@@ -282,14 +208,14 @@ export default function DailyProgressScreen() {
     );
   }
 
-  // ---- presentation-only derived values ----
-  const totalPob = rows.reduce((sum, row) => sum + Number(row.pob_amount || 0), 0);
-
   return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={[styles.contentContainer, styles.keyboardContent]}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       <ScreenHeader title="Daily Progress" subtitle="Today's visits and POB report" />
 
@@ -326,7 +252,7 @@ export default function DailyProgressScreen() {
         <View style={styles.heroMetaRow}>
           <View style={styles.heroMetaTile}>
             <Text style={styles.heroMetaLabel}>VISITS</Text>
-            <Text style={styles.heroMetaValue}>{rows.length}</Text>
+            <Text style={styles.heroMetaValue}>{entries.length}</Text>
           </View>
 
           <View style={styles.heroMetaTile}>
@@ -336,10 +262,6 @@ export default function DailyProgressScreen() {
             </Text>
           </View>
 
-          <View style={styles.heroMetaTile}>
-            <Text style={styles.heroMetaLabel}>POB</Text>
-            <Text style={styles.heroMetaValue}>₹{totalPob.toFixed(0)}</Text>
-          </View>
         </View>
       </View>
 
@@ -362,21 +284,6 @@ export default function DailyProgressScreen() {
             onChangeText={() => {}}
           />
 
-          <AppInput
-            label="Start Meter"
-            placeholder=""
-            editable={false}
-            value={progress ? String(progress.start_meter) : ""}
-            onChangeText={() => {}}
-          />
-
-          <AppInput
-            label="End Meter"
-            placeholder=""
-            editable={false}
-            value={progress ? String(progress.end_meter) : ""}
-            onChangeText={() => {}}
-          />
 
           <AppInput
             label="Total KM"
@@ -395,56 +302,62 @@ export default function DailyProgressScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>Visits</Text>
             <Text style={styles.cardSubtitle}>
-              {rows.length ? `${rows.length} visit${rows.length > 1 ? "s" : ""} recorded` : "Add the parties you met today"}
+              {entries.length ? `${entries.length} visit${entries.length > 1 ? "s" : ""} submitted today` : "Enter the first visit of the day"}
             </Text>
           </View>
         </View>
 
         <View style={styles.countChip}>
-          <Text style={styles.countChipText}>{rows.length}</Text>
+          <Text style={styles.countChipText}>{entries.length}</Text>
         </View>
       </View>
 
-      <View style={styles.actionsRow}>
-        <PrimaryButton title="Add Row" onPress={handleAddRow} disabled={isReadOnly} />
-      </View>
-
-      {rows.map((row, index) => (
-        <ProgressRow
-          key={`${row.id ?? "new"}-${index}`}
-          index={index}
-          value={row}
-          partyData={partyData}
-          readOnly={isReadOnly}
-          onDelete={() => handleDeleteRow(index)}
-          onChange={(value) => handleRowChange(index, value)}
-        />
-      ))}
-
-      {!rows.length ? (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Text style={styles.emptyIconText}>＋</Text>
-          </View>
-          <Text style={styles.emptyTitle}>No visits added yet</Text>
-          <Text style={styles.emptyText}>
-            Tap “Add Row” to record your first visit of the day.
+      {!isReadOnly ? (
+        <>
+          <ProgressRow
+            index={entries.length}
+            value={formRow}
+            partyData={partyData}
+            readOnly={false}
+            onChange={(value) => setFormRow(value)}
+            onDelete={() => {}}
+            onSubmit={handleSubmitVisit}
+            submitting={saving}
+          />
+          <Text style={styles.helperNote}>
+            Fill in the visit details and tap “Submit Visit”. The form will clear automatically for the next visit.
           </Text>
-        </View>
-      ) : null}
-
-      <View style={styles.actionsRow}>
-        <PrimaryButton title="Save Draft" onPress={handleSaveDraft} disabled={isReadOnly || saving} loading={saving} />
-        {!isReadOnly ? (
-          <PrimaryButton title="Submit" onPress={handleSubmit} disabled={saving} loading={saving} />
-        ) : null}
-        <Text style={styles.helperNote}>
-          {isReadOnly
-            ? "This report has been submitted and is read-only."
-            : "Save a draft anytime — submit once the day is complete."}
-        </Text>
-      </View>
+          <PaperButton
+            mode="outlined"
+            icon="file-pdf-box"
+            onPress={handleGeneratePdf}
+            loading={generatingPdf}
+            disabled={generatingPdf}
+            style={styles.pdfButton}
+          >
+            Generate PDF
+          </PaperButton>
+        </>
+      ) : (
+        <>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Daily report submitted</Text>
+            <Text style={styles.emptyText}>This report is read-only.</Text>
+          </View>
+          <PaperButton
+            mode="outlined"
+            icon="file-pdf-box"
+            onPress={handleGeneratePdf}
+            loading={generatingPdf}
+            disabled={generatingPdf}
+            style={styles.pdfButton}
+          >
+            Generate PDF
+          </PaperButton>
+        </>
+      )}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -454,9 +367,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4F8FC",
   },
 
+  pdfButton: {
+    marginTop: 2,
+    borderRadius: 12,
+  },
+
   contentContainer: {
     padding: 20,
     paddingBottom: 44,
+  },
+
+  keyboardContent: {
+    paddingBottom: 220,
   },
 
   loader: {

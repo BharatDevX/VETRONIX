@@ -60,33 +60,19 @@ export default function SecondarySalesReportScreen() {
 
     },[reports,search]);
 
-    const totalQty=useMemo(()=>{
+    const totalQty = useMemo(() => {
+  return filteredReports.reduce(
+    (sum, item) => sum + Number(item.quantity ?? 0),
+    0
+  );
+}, [filteredReports]);
 
-        return filteredReports.reduce(
-
-            (sum,item)=>
-
-            sum+Number(item.total_quantity),
-
-            0
-
-        );
-
-    },[filteredReports]);
-
-    const totalAmount=useMemo(()=>{
-
-        return filteredReports.reduce(
-
-            (sum,item)=>
-
-            sum+Number(item.total_amount),
-
-            0
-
-        );
-
-    },[filteredReports]);
+  const totalAmount = useMemo(() => {
+  return filteredReports.reduce(
+    (sum, item) => sum + Number(item.amount ?? 0),
+    0
+  );
+}, [filteredReports]);
 
     const contentOpacity = useRef(new Animated.Value(0)).current;
     const contentTranslateY = useRef(new Animated.Value(16)).current;
@@ -259,14 +245,14 @@ export default function SecondarySalesReportScreen() {
                             <View style={styles.infoRow}>
                                 <Text style={styles.label}>Quantity</Text>
                                 <View style={styles.chip}>
-                                    <Text style={styles.chipText}>{item.total_quantity}</Text>
+                                    <Text style={styles.chipText}>{item.quantity}</Text>
                                 </View>
                             </View>
 
                             <View style={styles.infoRowLast}>
                                 <Text style={styles.label}>Amount</Text>
                                 <View style={styles.amountPill}>
-                                    <Text style={styles.amountPillText}>₹{item.total_amount}</Text>
+                                    <Text style={styles.amountPillText}>₹{item.amount}</Text>
                                 </View>
                             </View>
 

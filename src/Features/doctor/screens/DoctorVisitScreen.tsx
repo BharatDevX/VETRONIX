@@ -1,19 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ScrollView, Alert, StyleSheet, View, Text, Animated, Easing } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Alert, StyleSheet, View, Text, Animated, Easing } from "react-native";
 
-import * as Location from "expo-location";
 import dayjs from "dayjs";
 
 import ScreenHeader from "../../../components/ui/ScreenHeader";
-import AppSearchDropdown from "../../../components/ui/AppSearchDropdown";
+import LocalPartyPicker from "../../../components/forms/LocalPartyPicker";
 import AppMultiSelect from "../../../components/ui/AppMultiSelect";
 import AppDatePicker from "../../../components/ui/AppDatePicker";
 import AppInput from "../../../components/ui/AppInput";
+import AppSearchDropdown from "../../../components/ui/AppSearchDropdown";
+import { VEHICLE_TYPE_OPTIONS } from "../../../constants/vehicleTypes";
 import PrimaryButton from "../../../components/ui/PrimaryButton";
 
 import { useMasters } from "../../master/hooks/useMasters";
 import { useDoctorVisit } from "../hooks/useDoctorVisit";
 import { useAuthStore } from "../../auth/store/auth.store";
+import { scheduleFollowUpReminder } from "../../follow-up/services/followUpNotification.service";
 
 export default function DoctorVisitScreen() {
   const { employee } = useAuthStore();
@@ -27,23 +29,27 @@ export default function DoctorVisitScreen() {
     visit_date: string;
     visit_time: string;
     location: string;
+    vehicle_type: string;
     discussion: string;
+    outcome: string;
     remarks: string;
     next_followup_date: string;
-    latitude?: number;
-    longitude?: number;
     product_ids: string[];
+    doctor_name?: string;
+    doctor_is_local?: boolean;
   }>({
     doctor_id: "",
     visit_date: dayjs().format("YYYY-MM-DD"),
     visit_time: dayjs().format("HH:mm"),
     location: "",
+    vehicle_type: "",
     discussion: "",
+    outcome: "",
     remarks: "",
     next_followup_date: dayjs().format("YYYY-MM-DD"),
-    latitude: undefined,
-    longitude: undefined,
     product_ids: [],
+    doctor_name: "",
+    doctor_is_local: false,
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -51,8 +57,6 @@ export default function DoctorVisitScreen() {
   const contentTranslateY = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
-    getCurrentLocation();
-
     Animated.parallel([
       Animated.timing(contentOpacity, {
         toValue: 1,
@@ -69,24 +73,22 @@ export default function DoctorVisitScreen() {
     ]).start();
   }, []);
 
-  async function getCurrentLocation() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-
-    if (status !== "granted") return;
-
-    const location = await Location.getCurrentPositionAsync({});
-
-    setForm((prev) => ({
-      ...prev,
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      location: `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`,
-    }));
-  }
 
   async function saveVisit() {
     if (!form.doctor_id) {
       Alert.alert("Validation", "Please select a doctor before saving.");
+      return;
+    }
+    if (!form.vehicle_type) {
+      Alert.alert("Validation", "Please select the vehicle type.");
+      return;
+    }
+    if (!form.discussion.trim()) {
+      Alert.alert("Validation", "Please enter the discussion.");
+      return;
+    }
+    if (!form.outcome.trim()) {
+      Alert.alert("Validation", "Please enter the outcome.");
       return;
     }
 
@@ -94,7 +96,24 @@ export default function DoctorVisitScreen() {
 
     try {
       const result = await save(form);
+      if (result?.data?.id && form.next_followup_date && !result?.isLocal) {
+        await scheduleFollowUpReminder({ visitId: result.data.id, visitType: "Doctor", partyName: form.doctor_name || "Doctor", followUpDate: form.next_followup_date });
+      }
       Alert.alert("Success", result?.isUpdate ? "Doctor Visit Updated Successfully" : "Doctor Visit Saved Successfully");
+      setForm({
+        doctor_id: "",
+        visit_date: dayjs().format("YYYY-MM-DD"),
+        visit_time: dayjs().format("HH:mm"),
+        location: "",
+        vehicle_type: "",
+        discussion: "",
+        outcome: "",
+        remarks: "",
+        next_followup_date: dayjs().format("YYYY-MM-DD"),
+        product_ids: [],
+        doctor_name: "",
+        doctor_is_local: false,
+      });
     } catch (e) {
       Alert.alert("Error", "Unable to save visit.");
     } finally {
@@ -102,14 +121,20 @@ export default function DoctorVisitScreen() {
     }
   }
 
-  const locationReady = !!form.latitude && !!form.longitude;
+  const locationReady = Boolean(form.location.trim());
 
   return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
-    >
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      >
       <ScreenHeader
         title="Doctor Visit"
         subtitle="Log a field visit with a doctor"
@@ -149,16 +174,19 @@ export default function DoctorVisitScreen() {
           <View style={[styles.accent, { backgroundColor: "#1D9C6E" }]} />
 
           <View style={styles.fieldGroup}>
-            <AppSearchDropdown
+            <LocalPartyPicker
+              employeeId={employee?.id ?? ""}
+              type="doctor"
               label="Doctor"
-              data={doctors}
+              masterData={doctors}
               labelField="doctor_name"
-              valueField="id"
               value={form.doctor_id}
               onChange={(item) =>
                 setForm({
                   ...form,
                   doctor_id: item.id,
+                  doctor_name: item.name ?? item.doctor_name ?? "",
+                  doctor_is_local: Boolean(item.isLocal || String(item.id ?? "").startsWith("local-party:")),
                 })
               }
             />
@@ -189,9 +217,19 @@ export default function DoctorVisitScreen() {
             <AppInput
               label="Location"
               value={form.location}
-              placeholder=""
-              editable={false}
-              onChangeText={() => {}}
+              placeholder="Enter location"
+              editable={true}
+              onChangeText={(text) => setForm({ ...form, location: text })}
+            />
+
+            <AppSearchDropdown
+              label="Vehicle Type *"
+              data={VEHICLE_TYPE_OPTIONS}
+              labelField="label"
+              valueField="id"
+              value={form.vehicle_type}
+              placeholder="Select vehicle type"
+              onChange={(item) => setForm({ ...form, vehicle_type: item.id })}
             />
           </View>
         </View>
@@ -238,16 +276,14 @@ export default function DoctorVisitScreen() {
             />
 
             <AppInput
-              label="Remarks"
-              value={form.remarks}
-              onChangeText={(text) =>
-                setForm({
-                  ...form,
-                  remarks: text,
-                })
-              }
-              placeholder=""
+              label="Outcome"
+              value={form.outcome}
+              onChangeText={(text) => setForm({ ...form, outcome: text })}
+              placeholder="Enter outcome"
+              multiline
+              numberOfLines={4}
             />
+
           </View>
         </View>
 
@@ -282,6 +318,7 @@ export default function DoctorVisitScreen() {
         <PrimaryButton title="Save Visit" onPress={saveVisit} loading={isSaving} />
       </Animated.View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -402,5 +439,10 @@ const styles = StyleSheet.create({
   fieldGroup: {
     gap: 12,
     marginTop: 14,
+  },
+
+  pdfButton: {
+    marginTop: -4,
+    borderRadius: 12,
   },
 });

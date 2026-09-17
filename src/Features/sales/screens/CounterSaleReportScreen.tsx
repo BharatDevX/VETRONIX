@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import {
+  Pressable,
   ScrollView,
   Text,
   StyleSheet,
@@ -9,6 +10,10 @@ import {
   Easing,
 } from "react-native";
 
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../../navigation/AppNavigator";
+
 import ScreenHeader from "../../../components/ui/ScreenHeader";
 import AppCard from "../../../components/ui/AppCard";
 
@@ -17,6 +22,7 @@ import { useCounterSale } from "../hooks/useCounterSale";
 
 export default function CounterSaleReportScreen() {
 
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { employee } = useAuthStore();
 
     const {
@@ -101,6 +107,13 @@ export default function CounterSaleReportScreen() {
                 title="Counter Sale Report"
                 subtitle="Overview of all counter sales"
             />
+
+            <Pressable
+                style={styles.addButton}
+                onPress={() => navigation.navigate("CounterSaleEntry")}
+            >
+                <Text style={styles.addButtonText}>+ Record Counter Sale</Text>
+            </Pressable>
 
             <Animated.View
                 style={{
@@ -277,6 +290,16 @@ export default function CounterSaleReportScreen() {
 }
 
 const styles = StyleSheet.create({
+  addButton: {
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: "#0F76AE",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  addButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+
 
     screen: {
         backgroundColor: "#F5F7FA",

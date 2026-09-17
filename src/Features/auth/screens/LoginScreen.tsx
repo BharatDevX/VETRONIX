@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   KeyboardAvoidingView,
   ScrollView,
   Platform,
@@ -47,6 +48,7 @@ export default function LoginScreen() {
 
   const [employeeId, setEmployeeId] = useState("");
 const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
 const employeeIdInputRef = useRef<TextInput>(null);
 const passwordInputRef = useRef<TextInput>(null);
@@ -180,7 +182,7 @@ const passwordInputRef = useRef<TextInput>(null);
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={
-          Platform.OS === "ios" ? "padding" : undefined
+          Platform.OS === "ios" ? "padding" : "height"
         }
       >
         <ScrollView
@@ -188,6 +190,7 @@ const passwordInputRef = useRef<TextInput>(null);
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Full client-provided banner: logo + name + "veterinary medicine" pill, all in one image */}
           <Animated.View
             style={[
               styles.brandWrap,
@@ -197,17 +200,13 @@ const passwordInputRef = useRef<TextInput>(null);
               },
             ]}
           >
-            <View style={styles.logoGlass}>
-              {/*
-                Swap this icon for the real Vetronix mark once the asset is
-                available, e.g.:
-                <Image source={require("../../../assets/vetronix-logo.png")} style={styles.logoImage} resizeMode="contain" />
-              */}
-              <Ionicons name="medkit" size={38} color={PALETTE.primary} />
+            <View style={styles.bannerGlass}>
+              <Image
+                source={require("../../../../assets/images/vetronix-banner.png")}
+                style={styles.bannerImage}
+                resizeMode="contain"
+              />
             </View>
-
-            <Text style={styles.brandName}>Vetronix</Text>
-            <Text style={styles.brandSubtitle}>Medical Representative Portal</Text>
           </Animated.View>
 
           <Animated.View
@@ -288,7 +287,7 @@ const passwordInputRef = useRef<TextInput>(null);
         onChangeText={setPassword}
         placeholder="Enter Password"
         placeholderTextColor="#9AA7B8"
-        secureTextEntry={true}
+        secureTextEntry={!showPassword}
         autoCapitalize="none"
         autoCorrect={false}
         autoFocus={false}
@@ -298,14 +297,21 @@ const passwordInputRef = useRef<TextInput>(null);
         blurOnSubmit={true}
         onSubmitEditing={handleLogin}
         style={styles.input}
-        onFocus={() => {
-          // Force password focus after Android finishes
-          // its touch/focus handling.
-          requestAnimationFrame(() => {
-            passwordInputRef.current?.focus();
-          });
-        }}
       />
+
+      <Pressable
+        onPress={() => setShowPassword((visible) => !visible)}
+        hitSlop={10}
+        style={styles.passwordToggle}
+        accessibilityRole="button"
+        accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+      >
+        <Ionicons
+          name={showPassword ? "eye-off-outline" : "eye-outline"}
+          size={21}
+          color="#94A3B8"
+        />
+      </Pressable>
     </View>
   </Animated.View>
 
@@ -400,19 +406,18 @@ const styles = StyleSheet.create({
 
   brandWrap: {
     alignItems: "center",
-    marginBottom: 28,
+    marginBottom: 20,
   },
 
-  logoGlass: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+  bannerGlass: {
+    width: "100%",
+    maxWidth: 440,
+    borderRadius: 24,
     backgroundColor: "rgba(255,255,255,0.75)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.9)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     shadowColor: PALETTE.primary,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.18,
@@ -420,23 +425,9 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 
-  logoImage: {
-    width: 52,
-    height: 52,
-  },
-
-  brandName: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: PALETTE.text,
-    letterSpacing: 0.2,
-  },
-
-  brandSubtitle: {
-    fontSize: 13,
-    color: "#64748B",
-    marginTop: 4,
-    fontWeight: "500",
+  bannerImage: {
+    width: "100%",
+    height: 130,
   },
 
   card: {
@@ -494,6 +485,14 @@ const styles = StyleSheet.create({
     color: PALETTE.text,
     paddingVertical: 0,
     height: "100%",
+  },
+
+  passwordToggle: {
+    width: 38,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
   },
 
   buttonShadowWrap: {

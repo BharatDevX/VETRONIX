@@ -1,29 +1,34 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ScrollView, Alert, StyleSheet, View, Text, Animated, Easing } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Alert, StyleSheet, View, Text, Animated, Easing } from "react-native";
 
-import * as Location from "expo-location";
 import dayjs from "dayjs";
 
 import ScreenHeader from "../../../components/ui/ScreenHeader";
-import AppSearchDropdown from "../../../components/ui/AppSearchDropdown";
+import LocalPartyPicker from "../../../components/forms/LocalPartyPicker";
 import AppDatePicker from "../../../components/ui/AppDatePicker";
+import AppMultiSelect from "../../../components/ui/AppMultiSelect";
 import AppInput from "../../../components/ui/AppInput";
+import AppSearchDropdown from "../../../components/ui/AppSearchDropdown";
+import { VEHICLE_TYPE_OPTIONS } from "../../../constants/vehicleTypes";
 import PrimaryButton from "../../../components/ui/PrimaryButton";
 
 import { useMasters } from "../../master/hooks/useMasters";
 import { useDealerVisit } from "../hooks/useDealerVisit";
 import { useAuthStore } from "../../auth/store/auth.store";
+import { scheduleFollowUpReminder } from "../../follow-up/services/followUpNotification.service";
 
 type DealerVisitForm = {
   dealer_id: string;
   visit_date: string;
   visit_time: string;
   location: string;
+  vehicle_type: string;
   discussion: string;
   outcome: string;
   next_followup_date: string;
-  latitude?: number;
-  longitude?: number;
+  product_ids: string[];
+  dealer_name?: string;
+  dealer_is_local?: boolean;
 };
 
 const initialForm = (): DealerVisitForm => ({
@@ -31,16 +36,18 @@ const initialForm = (): DealerVisitForm => ({
   visit_date: dayjs().format("YYYY-MM-DD"),
   visit_time: dayjs().format("HH:mm"),
   location: "",
+  vehicle_type: "",
   discussion: "",
   outcome: "",
   next_followup_date: dayjs().format("YYYY-MM-DD"),
-  latitude: undefined,
-  longitude: undefined,
+  product_ids: [],
+  dealer_name: "",
+  dealer_is_local: false,
 });
 
 export default function DealerVisitScreen() {
   const { employee } = useAuthStore();
-  const { dealers } = useMasters();
+  const { dealers, products } = useMasters();
   const { save, saving } = useDealerVisit(employee?.id ?? "");
 
   const [form, setForm] = useState<DealerVisitForm>(initialForm);
@@ -49,47 +56,28 @@ export default function DealerVisitScreen() {
   const contentTranslateY = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
-    getLocation();
-
     Animated.parallel([
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 380,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(contentTranslateY, {
-        toValue: 0,
-        duration: 380,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
+      Animated.timing(contentOpacity, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(contentTranslateY, { toValue: 0, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, []);
 
-  async function getLocation() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-
-    if (status !== "granted") return;
-
-    const location = await Location.getCurrentPositionAsync({});
-
-    setForm((prev) => ({
-      ...prev,
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      location: `${location.coords.latitude.toFixed(5)}, ${location.coords.longitude.toFixed(5)}`,
-    }));
-  }
 
   async function saveVisit() {
     if (!form.dealer_id) {
       Alert.alert("Validation", "Please select a dealer before saving.");
       return;
     }
+    if (!form.vehicle_type) {
+      Alert.alert("Validation", "Please select the vehicle type.");
+      return;
+    }
 
     try {
       const result = await save(form);
+      if (result?.data?.id && form.next_followup_date && !result?.isLocal) {
+        await scheduleFollowUpReminder({ visitId: result.data.id, visitType: "Dealer", partyName: form.dealer_name || "Dealer", followUpDate: form.next_followup_date });
+      }
       Alert.alert("Success", result?.isUpdate ? "Existing record updated successfully." : "Saved successfully.");
       setForm(initialForm());
     } catch {
@@ -97,14 +85,20 @@ export default function DealerVisitScreen() {
     }
   }
 
-  const locationReady = !!form.latitude && !!form.longitude;
+  const locationReady = Boolean(form.location.trim());
 
   return (
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
-    >
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      >
       <ScreenHeader
         title="Dealer Visit"
         subtitle="Log a field visit with a dealer"
@@ -144,13 +138,14 @@ export default function DealerVisitScreen() {
           <View style={[styles.accent, { backgroundColor: "#1D9C6E" }]} />
 
           <View style={styles.fieldGroup}>
-            <AppSearchDropdown
+            <LocalPartyPicker
+              employeeId={employee?.id ?? ""}
+              type="dealer"
               label="Dealer"
-              data={dealers}
+              masterData={dealers}
               labelField="dealer_name"
-              valueField="id"
               value={form.dealer_id}
-              onChange={(item) => setForm({ ...form, dealer_id: item.id })}
+              onChange={(item) => setForm({ ...form, dealer_id: item.id, dealer_name: item.name ?? item.dealer_name ?? "", dealer_is_local: Boolean(item.isLocal || String(item.id ?? "").startsWith("local-party:")) })}
             />
 
             <AppDatePicker
@@ -168,10 +163,20 @@ export default function DealerVisitScreen() {
 
             <AppInput
               label="Location"
-              placeholder="Current location"
+              placeholder="Enter location"
               value={form.location}
-              editable={false}
-              onChangeText={() => {}}
+              editable={true}
+              onChangeText={(text) => setForm({ ...form, location: text })}
+            />
+
+            <AppSearchDropdown
+              label="Vehicle Type *"
+              data={VEHICLE_TYPE_OPTIONS}
+              labelField="label"
+              valueField="id"
+              value={form.vehicle_type}
+              placeholder="Select vehicle type"
+              onChange={(item) => setForm({ ...form, vehicle_type: item.id })}
             />
           </View>
         </View>
@@ -199,6 +204,14 @@ export default function DealerVisitScreen() {
               onChangeText={(text) => setForm({ ...form, discussion: text })}
             />
 
+            <AppMultiSelect
+              label="Products Discussed"
+              data={products}
+              labelField="product_name"
+              valueField="id"
+              value={form.product_ids}
+              onChange={(items) => setForm({ ...form, product_ids: items })}
+            />
             <AppInput
               label="Outcome"
               placeholder="Enter outcome"
@@ -206,6 +219,7 @@ export default function DealerVisitScreen() {
               value={form.outcome}
               onChangeText={(text) => setForm({ ...form, outcome: text })}
             />
+
           </View>
         </View>
 
@@ -235,6 +249,7 @@ export default function DealerVisitScreen() {
         <PrimaryButton title="Save Visit" onPress={saveVisit} loading={saving} disabled={saving} />
       </Animated.View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -355,5 +370,10 @@ const styles = StyleSheet.create({
   fieldGroup: {
     gap: 12,
     marginTop: 14,
+  },
+
+  pdfButton: {
+    marginTop: -4,
+    borderRadius: 12,
   },
 });

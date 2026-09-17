@@ -41,7 +41,7 @@ export interface MarkAttendancePayload {
 
   address?: string;
 
-  status: AttendanceStatus;
+  status?: AttendanceStatus;
 
   remarks?: string;
 }

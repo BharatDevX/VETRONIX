@@ -16,6 +16,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   BadgeDollarSign,
+  Bell,
   BriefcaseBusiness,
   CalendarCheck,
   CalendarDays,
@@ -23,24 +24,24 @@ import {
   FileBarChart,
   LogOut,
   Route,
-  SquarePen,
   Stethoscope,
-  Store,
-  TrendingUp,
   ShoppingCart,
+  Truck,
 } from "lucide-react-native";
 import dayjs from "dayjs";
 import { UserCircle } from "lucide-react-native";
 import Colors from "../../../theme/color";
+import AdminMessageListener from "../../../components/notifications/AdminMessageListener";
 import { RootStackParamList } from "../../../navigation/AppNavigator";
 import { getTodayAttendance } from "../../attendance/services/attendance.service";
+import { getMonthlySalesSummary } from "../../sales/services/sales.service";
+import { getMyHqReceivableSummary } from "../../finance/services/hqReceivables.service";
 import { Attendance } from "../../attendance/types/attendance.types";
 import { useAuthStore } from "../../auth/store/auth.store";
 import { logout } from "../../auth/services/auth.service";
 import { workService } from "../../work/services/work.service";
 import { WorkSession } from "../../work/types/work.types";
 import { resolveProfileImageUrl } from "../../profile/services/employeeProfile.service";
-import {PackageCheck} from "lucide-react-native";
 import {
   MapPinned,
 } from "lucide-react-native";
@@ -56,11 +57,13 @@ interface MenuItem {
   title: string;
   route: MenuRoute;
   icon: IconComponent;
+  iconColor?: string;
 }
 
 interface MenuCardProps {
   title: string;
   icon: IconComponent;
+  iconColor?: string;
   onPress: () => void;
 }
 
@@ -73,25 +76,46 @@ interface StatisticCardProps {
 // Replaced with the actual Vetronix company logo (transparent PNG).
 const HEADER_IMAGE = require("../../../../assets/images/logo.png");
 
-const MENU_ITEMS: MenuItem[] = [
-  { title: "Attendance", route: "Attendance", icon: CalendarCheck },
+const MENU_CATEGORIES: { title: string; items: MenuItem[] }[] = [
   {
-  title: "Monthly Tour Programme",
-  route: "MonthlyTourProgramme",
-  icon: MapPinned,
-},
-  { title: "Doctor Meeting Plan", route: "DoctorMeetingPlan", icon: ClipboardList },
-  { title: "Doctor Visit", route: "DoctorVisit", icon: Stethoscope },
-  { title: "Dealer Meeting Plan", route: "DealerMeetingPlan", icon: SquarePen },
-  { title: "Dealer Visit", route: "DealerVisit", icon: Store },
-  { title: "Daily Progress", route: "DailyProgress", icon: TrendingUp },
-  { title: "Order Form", route: "SalesEntry", icon: ShoppingCart },
-  { title: "Counter Sale Report", route: "CounterSaleReport", icon: FileBarChart },
-  { title: "Doctor Wise Sales", route: "DoctorWiseSalesReport", icon: Stethoscope },
-  { title: "Secondary Sales", route: "SecondarySalesReport", icon: FileBarChart },
-  { title: "Incentive Dashboard", route: "IncentiveDashboard", icon: BadgeDollarSign },
-  { title: "Order Delivery Status", route: "OrderDeliveryStatus", icon: PackageCheck },
-
+    title: "Attendance",
+    items: [
+      { title: "Attendance", route: "Attendance", icon: CalendarCheck },
+    ],
+  },
+  {
+    title: "Daily Progress",
+    items: [
+      { title: "Daily Progress", route: "Visit", icon: Stethoscope },
+      { title: "Follow-Up", route: "FollowUp", icon: CalendarCheck },
+    ],
+  },
+  {
+    title: "Monthly Programme",
+    items: [
+      { title: "Monthly Tour Programme", route: "MonthlyTourProgramme", icon: MapPinned, iconColor: "#DC2626" },
+      { title: "Monthly Meeting Plan", route: "MeetingPlan", icon: ClipboardList, iconColor: "#DC2626" },
+    ],
+  },
+  {
+    title: "Order and Sales",
+    items: [
+      { title: "Order Form", route: "SalesEntry", icon: ShoppingCart },
+      { title: "Sales", route: "SalesInvoiceEntry", icon: BadgeDollarSign },
+      { title: "Counter Sales", route: "CounterSaleReport", icon: FileBarChart },
+      { title: "Doctor Wise Sale", route: "DoctorWiseSalesReport", icon: Stethoscope },
+      { title: "Secondary Sales", route: "SecondarySalesEntry", icon: FileBarChart, iconColor: "#DC2626" },
+      { title: "Secondary Sales Report", route: "SecondarySalesReport", icon: FileBarChart },
+    ],
+  },
+  {
+    title: "Reports",
+    items: [
+      { title: "Incentive Calculation", route: "IncentiveDashboard", icon: BadgeDollarSign },
+      { title: "Order Delivery Status", route: "OrderDeliveryStatus", icon: Truck },
+      { title: "Notifications", route: "AdminNotifications", icon: Bell, iconColor: "#2563EB" },
+    ],
+  },
 ];
 
 function getGreeting() {
@@ -130,18 +154,6 @@ function getAttendanceLabel(attendanceValue: Attendance | null) {
   }
 }
 
-function getWorkStatus(session: WorkSession | null) {
-  if (!session) {
-    return "Not Started";
-  }
-
-  if (session.status === "completed") {
-    return "Completed";
-  }
-
-  return "Started";
-}
-
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unable to load dashboard.";
 }
@@ -150,10 +162,17 @@ export default function HomeScreen() {
   const employee = useAuthStore((state) => state.employee);
   const navigation = useNavigation<HomeNavigation>();
 
+  const navigateToRoute = useCallback((route: MenuRoute) => {
+    navigation.navigate(route as never);
+  }, [navigation]);
+
   const [attendance, setAttendance] = useState<Attendance | null>(null);
   const [workSession, setWorkSession] = useState<WorkSession | null>(null);
+  const [monthlyKm, setMonthlyKm] = useState(0);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [monthlySales, setMonthlySales] = useState({ achieved: 0, target: 0 });
+  const [hqReceivables, setHqReceivables] = useState({ hq: "", paidAmount: 0, overdueAmount: 0 });
 
   const handleLogout = async () => {
     await logout();
@@ -168,15 +187,25 @@ export default function HomeScreen() {
     setDashboardLoading(true);
 
     try {
-      const [attendanceResult, workResult, profileImageResult] = await Promise.all([
+      const [attendanceResult, workResult, monthlyKmResult, profileImageResult, todaySalesResult, receivablesResult] = await Promise.all([
         getTodayAttendance(employee.id),
         workService.getTodaySession(employee.id),
+        workService.getCurrentMonthTotalKm(employee.id),
         resolveProfileImageUrl(employee.profile_image),
+        getMonthlySalesSummary(employee.id),
+        getMyHqReceivableSummary(employee.id),
       ]);
 
       setAttendance(attendanceResult);
       setWorkSession(workResult);
+      setMonthlyKm(monthlyKmResult);
       setProfileImageUrl(profileImageResult);
+      setMonthlySales(todaySalesResult);
+      setHqReceivables({
+        hq: receivablesResult.hq,
+        paidAmount: receivablesResult.paidAmount,
+        overdueAmount: receivablesResult.overdueAmount,
+      });
     } catch (error) {
       Alert.alert("Error", getErrorMessage(error));
     } finally {
@@ -203,13 +232,12 @@ export default function HomeScreen() {
   }
 
   const attendanceLabel = getAttendanceLabel(attendance);
-  const workStatusLabel = getWorkStatus(workSession);
   const totalKm = workSession?.total_km ?? 0;
   const todayLong = dayjs().format("dddd, DD MMM YYYY");
-  const todayShort = dayjs().format("DD MMM YYYY");
 
   return (
     <SafeAreaView style={styles.screen}>
+      <AdminMessageListener />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -280,10 +308,67 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.statsGrid}>
-          <StatisticCard label="Today's Attendance" value={attendanceLabel} icon={CalendarCheck} />
-          <StatisticCard label="Today's KM" value={`${totalKm} KM`} icon={Route} />
-          <StatisticCard label="Work Status" value={workStatusLabel} icon={BriefcaseBusiness} />
-          <StatisticCard label="Today's Date" value={todayShort} icon={CalendarDays} />
+          <Pressable
+            style={styles.statCardPressable}
+              onPress={() => navigation.navigate("AttendanceHistory")}
+            android_ripple={{ color: "#EAF4FF", borderless: false }}
+          >
+            <View style={styles.statCard}>
+              <View style={styles.statIconRow}>
+                <View style={styles.statIconShell}>
+                  <CalendarCheck color={Colors.primary} size={20} strokeWidth={2.2} />
+                </View>
+
+                <View
+                  style={[
+                    styles.attendanceStatusDot,
+                    {
+                      backgroundColor:
+                        attendance?.status === "PRESENT"
+                          ? "#16A34A"
+                          : attendance?.status === "HALF_DAY"
+                            ? "#EAB308"
+                            : attendance?.status === "LEAVE" ||
+                                attendance?.status === "ABSENT"
+                              ? "#DC2626"
+                              : "#94A3B8",
+                    },
+                  ]}
+                />
+              </View>
+
+              <Text style={styles.statValue} numberOfLines={2}>
+                {attendanceLabel}
+              </Text>
+              <Text style={styles.statLabel} numberOfLines={2}>
+                TODAY'S ATTENDANCE
+              </Text>
+            </View>
+          </Pressable>
+
+          <View style={styles.statCardPressable}>
+            <StatisticCard
+              label={"Today's KM / Total KM"}
+              value={`${totalKm.toFixed(2)} KM / ${monthlyKm.toFixed(2)} KM`}
+              icon={Route}
+            />
+          </View>
+
+          <View style={styles.statCardPressable}>
+            <StatisticCard
+              label={hqReceivables.hq ? `Paid / Overdue • ${hqReceivables.hq}` : "Total Paid / Total Overdue"}
+              value={`₹${hqReceivables.paidAmount.toLocaleString("en-IN")} / ₹${hqReceivables.overdueAmount.toLocaleString("en-IN")}`}
+              icon={BadgeDollarSign}
+            />
+          </View>
+
+          <View style={styles.statCardPressable}>
+            <StatisticCard
+              label={"Monthly Sales / Target"}
+              value={`₹${monthlySales.achieved.toLocaleString("en-IN")} / ₹${monthlySales.target.toLocaleString("en-IN")}`}
+              icon={ShoppingCart}
+            />
+          </View>
         </View>
 
         <View style={styles.quickActionsHeader}>
@@ -301,14 +386,22 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.menuGrid}>
-          {MENU_ITEMS.map((item) => (
-            <MenuCard
-              key={item.route}
-              title={item.title}
-              icon={item.icon}
-              onPress={() => navigation.navigate(item.route)}
-            />
+        <View style={styles.categoryList}>
+          {MENU_CATEGORIES.map((category) => (
+            <View key={category.title} style={styles.categoryBlock}>
+              <Text style={styles.categoryTitle}>{category.title}</Text>
+              <View style={styles.menuGrid}>
+                {category.items.map((item) => (
+                  <MenuCard
+                    key={item.route}
+                    title={item.title}
+                    icon={item.icon}
+                    iconColor={item.iconColor}
+                    onPress={() => navigateToRoute(item.route)}
+                  />
+                ))}
+              </View>
+            </View>
           ))}
         </View>
 
@@ -321,9 +414,13 @@ export default function HomeScreen() {
           onPress={() => navigation.navigate("EndWork")}
         >
           <View style={styles.endWorkIconShell}>
-            <BriefcaseBusiness color={Colors.primary} size={18} strokeWidth={2.2} />
+            <BriefcaseBusiness color="#FFFFFF" size={19} strokeWidth={2.4} />
           </View>
-          <Text style={styles.endWorkText}>Complete Daily Tasks / End Work</Text>
+          <View style={styles.endWorkTextWrap}>
+            <Text style={styles.endWorkText}>END WORK</Text>
+            <Text style={styles.endWorkSubtext}>Finish today’s field work</Text>
+          </View>
+          <Text style={styles.endWorkArrow}>→</Text>
         </Pressable>
 
         <Pressable
@@ -413,7 +510,7 @@ function StatisticCard({ label, value, icon: Icon }: StatisticCardProps) {
   );
 }
 
-function MenuCard({ title, icon: Icon, onPress }: MenuCardProps) {
+function MenuCard({ title, icon: Icon, iconColor, onPress }: MenuCardProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const animateTo = (value: number) => {
@@ -435,7 +532,7 @@ function MenuCard({ title, icon: Icon, onPress }: MenuCardProps) {
     >
       <Animated.View style={[styles.menuCard, { transform: [{ scale }] }]}>
         <View style={styles.menuIconShell}>
-          <Icon color={Colors.primary} size={21} strokeWidth={2.1} />
+          <Icon color={iconColor ?? Colors.primary} size={21} strokeWidth={2.1} />
         </View>
         <Text style={styles.menuTitle} numberOfLines={2}>
           {title}
@@ -632,10 +729,25 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  statCard: {
+  statCardPressable: {
     width: "48.4%",
-    minHeight: 112,
     marginBottom: 12,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  statIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  attendanceStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  statCard: {
+    width: "100%",
+    minHeight: 112,
     padding: 14,
     justifyContent: "space-between",
     backgroundColor: "#FFFFFF",
@@ -727,9 +839,23 @@ const styles = StyleSheet.create({
     color: "#0F76AE",
   },
 
-  /* ---------- Module grid ---------- */
-  menuGrid: {
+  /* ---------- Categorized quick actions ---------- */
+  categoryList: {
     paddingHorizontal: 16,
+  },
+  categoryBlock: {
+    marginBottom: 18,
+  },
+  categoryTitle: {
+    marginBottom: 10,
+    paddingHorizontal: 2,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    color: "#64748B",
+  },
+  menuGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
@@ -779,33 +905,52 @@ const styles = StyleSheet.create({
 
   /* ---------- Primary / danger actions ---------- */
   endWorkButton: {
-    minHeight: 54,
+    minHeight: 70,
     marginHorizontal: 16,
-    marginTop: 4,
-    borderRadius: 16,
-    borderWidth: 1.4,
-    borderColor: "#9DD5F5",
-    borderStyle: "dashed",
-    backgroundColor: "#F4FBFF",
+    marginTop: 6,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
+    paddingHorizontal: 16,
+    shadowColor: "#0F76AE",
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 6,
   },
   endWorkIconShell: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E2F2FE",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.24)",
   },
-  actionButtonPressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
+  actionButtonPressed: { opacity: 0.9, transform: [{ scale: 0.975 }] },
+  endWorkTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
   endWorkText: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontWeight: "900",
-    letterSpacing: 0.2,
-    color: Colors.primary,
+    letterSpacing: 0.6,
+    color: "#FFFFFF",
+  },
+  endWorkSubtext: {
+    marginTop: 3,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.78)",
+  },
+  endWorkArrow: {
+    marginLeft: 10,
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 
   logoutButton: {

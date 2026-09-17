@@ -1,6 +1,11 @@
 import dayjs from "dayjs";
 import { supabase } from "../../../services/supabase/supabase";
 import {
+  getSecondarySalesWeekDate,
+  hasSubmittedSecondarySales,
+  markMissedSecondarySalesDaysAbsent,
+} from "../../sales/services/secondarySales.service";
+import {
   Attendance,
   MarkAttendancePayload,
 } from "../types/attendance.types";
@@ -10,6 +15,29 @@ const MTP_NOT_CREATED_MESSAGE =
 
 const MTP_NOT_SUBMITTED_MESSAGE =
   "Please submit your Monthly Tour Programme before marking attendance.";
+
+const SECONDARY_SALES_NOT_SUBMITTED_MESSAGE =
+  "Secondary Sales is pending. Attendance will remain absent until you submit the weekly Secondary Sales form on Saturday.";
+
+async function ensureSecondarySalesSubmitted(employeeId: string) {
+  const today = dayjs();
+  const weekStart = dayjs(getSecondarySalesWeekDate(today));
+  const submitted = await hasSubmittedSecondarySales(employeeId, today);
+
+  if (!submitted) {
+    // Every completed day in the current Saturday-Friday window becomes ABSENT
+    // while the weekly Secondary Sales submission is still pending. Today is
+    // excluded so the employee can submit first and then mark today's attendance.
+    await markMissedSecondarySalesDaysAbsent(
+      employeeId,
+      weekStart,
+      today.subtract(1, "day"),
+    );
+
+    throw new Error(SECONDARY_SALES_NOT_SUBMITTED_MESSAGE);
+  }
+}
+
 
 async function ensureMonthlyTourProgrammeSubmitted(employeeId: string) {
   const today = dayjs();
@@ -66,22 +94,35 @@ export async function getTodayAttendance(
 export async function markAttendance(
   payload: MarkAttendancePayload
 ): Promise<Attendance> {
+  await ensureSecondarySalesSubmitted(payload.employee_id);
   await ensureMonthlyTourProgrammeSubmitted(payload.employee_id);
 
-  const today = dayjs().format("YYYY-MM-DD");
+  const today = dayjs();
+  const now = today.toISOString();
 
-  const now = dayjs().toISOString();
+  // Automatic attendance rules:
+  // before 10:00 AM -> PRESENT
+  // 10:00 AM to before 2:00 PM -> HALF_DAY
+  // 2:00 PM onward -> LEAVE
+  const minutesSinceMidnight = today.hour() * 60 + today.minute();
+
+  const status =
+    minutesSinceMidnight < 10 * 60
+      ? "PRESENT"
+      : minutesSinceMidnight < 14 * 60
+        ? "HALF_DAY"
+        : "LEAVE";
 
   const { data, error } = await supabase
     .from("attendance")
     .insert({
       employee_id: payload.employee_id,
-      attendance_date: today,
+      attendance_date: today.format("YYYY-MM-DD"),
       check_in_time: now,
       latitude: payload.latitude,
       longitude: payload.longitude,
       address: payload.address ?? null,
-      status: payload.status,
+      status,
       remarks: payload.remarks ?? null,
       working_minutes: 0,
     })
@@ -93,4 +134,29 @@ export async function markAttendance(
   }
 
   return data;
+}
+
+export async function getCurrentMonthAttendance(
+  employeeId: string
+): Promise<Attendance[]> {
+  if (!employeeId) {
+    return [];
+  }
+
+  const monthStart = dayjs().startOf("month").format("YYYY-MM-DD");
+  const monthEnd = dayjs().endOf("month").format("YYYY-MM-DD");
+
+  const { data, error } = await supabase
+    .from("attendance")
+    .select("*")
+    .eq("employee_id", employeeId)
+    .gte("attendance_date", monthStart)
+    .lte("attendance_date", monthEnd)
+    .order("attendance_date", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as Attendance[];
 }

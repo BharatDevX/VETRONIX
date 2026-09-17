@@ -4,22 +4,34 @@ export async function login(
   employeeId: string,
   password: string
 ) {
-  const { data: employee, error: employeeError } =
-    await supabase
-      .from("employees")
-      .select("email")
-      .eq("employee_id", employeeId)
-      .single();
+  const {
+    data: employee,
+    error: employeeError,
+  } = await supabase
+    .from("employees")
+    .select("email, auth_email")
+    .eq("employee_id", employeeId)
+    .single();
 
   if (employeeError || !employee) {
     throw new Error("Invalid Employee ID");
   }
 
-  const { data, error } =
-    await supabase.auth.signInWithPassword({
-      email: employee.email,
-      password,
-    });
+  const authEmail = employee.auth_email ?? employee.email;
+
+  if (!authEmail) {
+    throw new Error(
+      "Employee login account is not configured. Please contact admin."
+    );
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase.auth.signInWithPassword({
+    email: authEmail,
+    password,
+  });
 
   if (error) {
     throw error;

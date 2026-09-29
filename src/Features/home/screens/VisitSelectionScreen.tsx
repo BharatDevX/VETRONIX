@@ -51,7 +51,7 @@ export default function VisitSelectionScreen({ navigation }: Props) {
           records: records.map((record: any) => ({
             employeeName: employee.full_name ?? "",
             partyLabel: "Doctor",
-            partyName: doctorMap.get(record.doctor_id) ?? "Unknown Doctor",
+            partyName: doctorMap.get(record.doctor_id) ?? record.doctor_name ?? record.party_name ?? "Unknown Doctor",
             visitDate: record.visit_date ?? "",
             visitTime: record.visit_time ?? "",
             location: record.location ?? "",
@@ -71,7 +71,7 @@ export default function VisitSelectionScreen({ navigation }: Props) {
           records: records.map((record: any) => ({
             employeeName: employee.full_name ?? "",
             partyLabel: "Dealer",
-            partyName: dealerMap.get(record.dealer_id) ?? "Unknown Dealer",
+            partyName: dealerMap.get(record.dealer_id) ?? record.dealer_name ?? record.party_name ?? "Unknown Dealer",
             visitDate: record.visit_date ?? "",
             visitTime: record.visit_time ?? "",
             location: record.location ?? "",

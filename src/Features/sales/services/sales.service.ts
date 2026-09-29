@@ -6,7 +6,7 @@ interface SalePayload {
   employee_id: string;
   doctor_id: string | null;
   retailer_id: string | null;
-  dealer_id: string;
+  dealer_id: string | null;
   farmer_name: string | null;
   product_id: string;
   product_ids: string[];
@@ -26,42 +26,6 @@ interface SalePayload {
 interface SaveSaleResult {
   data: Sale;
   isUpdate: boolean;
-}
-
-interface ErrorLike {
-  code?: string;
-  message?: string;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === "object" && error !== null && "message" in error) {
-    return String((error as ErrorLike).message ?? "");
-  }
-
-  return "";
-}
-
-function getErrorCode(error: unknown): string {
-  if (typeof error === "object" && error !== null && "code" in error) {
-    return String((error as ErrorLike).code ?? "");
-  }
-
-  return "";
-}
-
-function isDuplicateError(error: unknown): boolean {
-  const message = getErrorMessage(error).toLowerCase();
-  const code = getErrorCode(error);
-
-  return code === "23505" || message.includes("duplicate") || message.includes("already exists") || message.includes("unique");
-}
-
-function normalizeRequiredId(value: string | undefined): string {
-  return value?.trim() ?? "";
 }
 
 function normalizeRetailerId(saleType: SaleType, retailerId?: string): string | null {
@@ -94,45 +58,6 @@ async function replaceSaleProductMappings(saleId: string, productIds: string[]) 
     .insert(rows);
 
   if (insertError) throw insertError;
-}
-
-async function findExistingSale(payload: SalePayload): Promise<Sale | null> {
-  const baseQuery = supabase
-    .from("sales")
-    .select("*")
-    .eq("employee_id", payload.employee_id)
-    .eq("sale_type", payload.sale_type)
-    .eq("dealer_id", payload.dealer_id)
-    .eq("product_id", payload.product_id)
-    .eq("sale_date", payload.sale_date)
-    .eq("order_number", payload.order_number)
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  const doctorQuery = payload.doctor_id
-    ? baseQuery.eq("doctor_id", payload.doctor_id)
-    : baseQuery.is("doctor_id", null);
-
-  const retailerQuery = payload.retailer_id
-    ? doctorQuery.eq("retailer_id", payload.retailer_id)
-    : doctorQuery.is("retailer_id", null);
-
-  const farmerQuery = payload.farmer_name
-    ? retailerQuery.eq("farmer_name", payload.farmer_name)
-    : retailerQuery.is("farmer_name", null);
-
-  const invoiceQuery = payload.invoice_no
-    ? farmerQuery.eq("invoice_no", payload.invoice_no)
-    : farmerQuery.is("invoice_no", null);
-
-  const { data, error } = await invoiceQuery.maybeSingle();
-
-  if (error) {
-    console.log("findExistingSale:", error);
-    throw error;
-  }
-
-  return (data ?? null) as Sale | null;
 }
 
 async function updateExistingSale(existingId: string, payload: SalePayload): Promise<Sale> {
@@ -306,9 +231,8 @@ async function resolveFarmerName(employeeId: string, value?: string): Promise<st
 }
 
 export async function saveSale(employeeId: string, form: SaleForm): Promise<SaveSaleResult> {
-  const dealerId = normalizeRequiredId(form.dealer_id);
+  const dealerId = form.dealer_id?.trim() || null;
   const lines = (form.lines ?? []).filter((line) => line.product_id?.trim());
-  const productIds = Array.from(new Set(lines.map((line) => line.product_id.trim())));
   const saleDate = form.sale_date?.trim();
   const orderNumber = form.order_number?.trim();
   const hq = form.hq?.trim();
@@ -318,7 +242,7 @@ export async function saveSale(employeeId: string, form: SaleForm): Promise<Save
     throw new Error("Unable to save the order form right now.");
   }
 
-  if (!dealerId) {
+  if (form.sale_type !== "farmer" && !dealerId) {
     throw new Error("Please select a dealer before saving.");
   }
 
@@ -342,12 +266,44 @@ export async function saveSale(employeeId: string, form: SaleForm): Promise<Save
     throw new Error("Please enter the head quarter before saving.");
   }
 
-  let firstSavedRecord: Sale | null = null;
-  let anyUpdated = false;
+  /*
+   * IMPORTANT:
+   * An order is the document, while every medicine row is a separate sale
+   * line. Therefore product_id MUST NOT be used to decide whether a line is
+   * an update. The same product is allowed to appear more than once in the
+   * same order.
+   *
+   * We first determine whether THIS ORDER already exists. If it is a new
+   * order, every form line is inserted independently. If it is an existing
+   * order, its existing rows are updated by position and additional rows are
+   * inserted. This preserves duplicate medicines such as A, B, A.
+   */
+  const { data: existingOrderRows, error: existingOrderError } = await supabase
+    .from("sales")
+    .select("*")
+    .eq("employee_id", employeeId)
+    .eq("sale_type", form.sale_type)
+    .eq("order_number", orderNumber)
+    .eq("sale_date", saleDate)
+    .order("created_at", { ascending: true });
 
-  for (const line of lines) {
+  if (existingOrderError) {
+    console.log("findExistingOrder:", existingOrderError);
+    throw existingOrderError;
+  }
+
+  // If an order number is reused, it is an edit/update of that order.
+  // Otherwise this is a completely new order and ALL lines are inserted.
+  const existingRows = (existingOrderRows ?? []) as Sale[];
+  const isExistingOrder = existingRows.length > 0;
+
+  let firstSavedRecord: Sale | null = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const quantity = Number(line.quantity);
     const rate = Number(line.rate);
+
     if (!line.pack_size?.trim()) {
       throw new Error("Please select a pack size for every medicine.");
     }
@@ -360,8 +316,6 @@ export async function saveSale(employeeId: string, form: SaleForm): Promise<Save
     if (!Number.isFinite(rate) || rate <= 0) {
       throw new Error("Rate must be greater than 0 for every medicine.");
     }
-
-    const creditPeriodRaw = null;
 
     const payload: SalePayload = {
       employee_id: employeeId,
@@ -377,58 +331,100 @@ export async function saveSale(employeeId: string, form: SaleForm): Promise<Save
       pack_size: line.pack_size.trim(),
       box_count: Number(line.box_count || 0),
       invoice_no: null,
-      credit_period: creditPeriodRaw,
+      credit_period: null,
       due_date: null,
       quantity,
       rate,
       sale_type: form.sale_type,
     };
 
-    const existing = await findExistingSale(payload);
     let savedRecord: Sale;
-    let isUpdate = false;
 
-    if (existing?.id) {
-      savedRecord = await updateExistingSale(existing.id, payload);
-      isUpdate = true;
+    if (isExistingOrder && existingRows[index]?.id) {
+      // Existing order: update the line at the same position.
+      // We intentionally DO NOT search by product_id here, because the same
+      // medicine may occur multiple times in one order.
+      savedRecord = await updateExistingSale(existingRows[index].id, payload);
     } else {
-      const { data, error } = await supabase.from("sales").insert({
-        employee_id: payload.employee_id,
-        doctor_id: payload.doctor_id,
-        retailer_id: payload.retailer_id,
-        dealer_id: payload.dealer_id,
-        farmer_name: payload.farmer_name,
-        product_id: payload.product_id,
-        sale_date: payload.sale_date,
-        order_number: payload.order_number,
-        hq: payload.hq,
-        pack_size: payload.pack_size,
-        box_count: payload.box_count,
-        quantity: payload.quantity,
-        rate: payload.rate,
-        sale_type: payload.sale_type,
-        invoice_no: payload.invoice_no,
-        credit_period: payload.credit_period,
-        due_date: payload.due_date,
-      }).select().single();
+      // New line, including duplicate products in a brand-new order.
+      const { data, error } = await supabase
+        .from("sales")
+        .insert({
+          employee_id: payload.employee_id,
+          doctor_id: payload.doctor_id,
+          retailer_id: payload.retailer_id,
+          dealer_id: payload.dealer_id,
+          farmer_name: payload.farmer_name,
+          product_id: payload.product_id,
+          sale_date: payload.sale_date,
+          order_number: payload.order_number,
+          hq: payload.hq,
+          pack_size: payload.pack_size,
+          box_count: payload.box_count,
+          quantity: payload.quantity,
+          rate: payload.rate,
+          sale_type: payload.sale_type,
+          invoice_no: payload.invoice_no,
+          credit_period: payload.credit_period,
+          due_date: payload.due_date,
+        })
+        .select()
+        .single();
 
       if (error) {
-        if (!isDuplicateError(error)) throw error;
-        const parallelSale = await findExistingSale(payload);
-        if (!parallelSale?.id) throw error;
-        savedRecord = await updateExistingSale(parallelSale.id, payload);
-        isUpdate = true;
-      } else {
-        if (!data) throw new Error("Unable to save the order form right now.");
-        savedRecord = data as Sale;
+        console.log("insertSaleLine:", error);
+        throw error;
       }
+
+      if (!data) {
+        throw new Error("Unable to save the order form right now.");
+      }
+
+      savedRecord = data as Sale;
     }
 
     await replaceSaleProductMappings(savedRecord.id, payload.product_ids);
     firstSavedRecord ??= savedRecord;
-    anyUpdated ||= isUpdate;
   }
 
-  if (!firstSavedRecord) throw new Error("Unable to save the order form right now.");
-  return { data: firstSavedRecord, isUpdate: anyUpdated };
+  /*
+   * If an existing order was edited and the new form contains fewer lines,
+   * remove only the surplus old lines. This keeps History/PDF synchronized
+   * with exactly what the employee currently has on the form.
+   */
+  if (isExistingOrder && existingRows.length > lines.length) {
+    const surplusRows = existingRows.slice(lines.length);
+    const surplusIds = surplusRows.map((row) => row.id).filter(Boolean);
+
+    if (surplusIds.length > 0) {
+      const { error: mappingDeleteError } = await supabase
+        .from("sale_products")
+        .delete()
+        .in("sale_id", surplusIds);
+
+      if (mappingDeleteError) {
+        console.log("delete surplus sale mappings:", mappingDeleteError);
+        throw mappingDeleteError;
+      }
+
+      const { error: surplusDeleteError } = await supabase
+        .from("sales")
+        .delete()
+        .in("id", surplusIds);
+
+      if (surplusDeleteError) {
+        console.log("delete surplus sale lines:", surplusDeleteError);
+        throw surplusDeleteError;
+      }
+    }
+  }
+
+  if (!firstSavedRecord) {
+    throw new Error("Unable to save the order form right now.");
+  }
+
+  return {
+    data: firstSavedRecord,
+    isUpdate: isExistingOrder,
+  };
 }

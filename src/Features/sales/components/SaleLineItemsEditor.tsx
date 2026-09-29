@@ -23,6 +23,7 @@ interface Props {
   onChange: (lines: SaleLineItem[]) => void;
   showPackSize?: boolean;
   manualQuantity?: boolean;
+  allowDuplicateProducts?: boolean;
 }
 
 const BOX_OPTIONS = Array.from({ length: 100 }, (_, index) => ({
@@ -63,6 +64,7 @@ export default function SaleLineItemsEditor({
   onChange,
   showPackSize = false,
   manualQuantity = false,
+  allowDuplicateProducts = false,
 }: Props) {
   const productOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -119,14 +121,58 @@ export default function SaleLineItemsEditor({
       </View>
 
       <AppCard>
-        <AppMultiSelect
-          label="Medicine"
-          data={productOptions}
-          labelField="product_name"
-          valueField="id"
-          value={selectedProductKeys}
-          onChange={handleProductsChange}
-        />
+        {allowDuplicateProducts ? (
+          <AppSearchDropdown
+            label="Add Medicine"
+            data={productOptions}
+            labelField="product_name"
+            valueField="id"
+            value=""
+            placeholder="Select medicine to add"
+            onChange={(item) => {
+              const selectedKey = String(item?.id ?? "").trim();
+              if (!selectedKey) return;
+
+              const selectedProduct = products.find(
+                (product) => productKey(product.product_name) === productKey(selectedKey),
+              );
+              if (!selectedProduct) return;
+
+              const blankIndex = lines.findIndex(
+                (line) => !line.product_id && !String(line.product_name ?? "").trim(),
+              );
+
+              const newLine: SaleLineItem = {
+                id: `${Date.now()}-${Math.random()}-${selectedKey}`,
+                product_id: selectedProduct.id,
+                product_name: selectedProduct.product_name.trim(),
+                pack_size: "",
+                box_count: 0,
+                quantity: manualQuantity ? 1 : 0,
+                rate: 0,
+              };
+
+              if (blankIndex >= 0) {
+                onChange(
+                  lines.map((line, index) =>
+                    index === blankIndex ? { ...line, ...newLine } : line,
+                  ),
+                );
+              } else {
+                onChange([...lines, newLine]);
+              }
+            }}
+          />
+        ) : (
+          <AppMultiSelect
+            label="Medicine"
+            data={productOptions}
+            labelField="product_name"
+            valueField="id"
+            value={selectedProductKeys}
+            onChange={handleProductsChange}
+          />
+        )}
       </AppCard>
 
       {lines.map((line, index) => {

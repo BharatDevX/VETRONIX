@@ -37,6 +37,9 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "CAMERA"
       ]
     },
@@ -47,7 +50,23 @@
 
     "plugins": [
       "expo-font",
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      [
+  "expo-location",
+  {
+    "isAndroidBackgroundLocationEnabled": true,
+    "isAndroidForegroundServiceEnabled": true,
+    "locationAlwaysAndWhenInUsePermission": "Allow Vetronix Employee to access your location while you are working, including when the app is in the background."
+  }
+]
+    ],
+
+    "extra": {
+      "eas": {
+        "projectId": "5db925db-a2e8-49e5-9e44-0be1e6626761"
+      }
+    },
+
+    "owner": "shramik"
   }
 }

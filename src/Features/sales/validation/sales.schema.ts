@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const SaleSchema = z.object({
   retailer_id: z.string().optional(),
-  dealer_id: z.string().min(1),
+  dealer_id: z.string().optional(),
   product_ids: z.array(z.string()).min(1, "Please select at least one medicine."),
   sale_date: z.string(),
   invoice_no: z.string().optional(),
@@ -12,6 +12,12 @@ export const SaleSchema = z.object({
   rate: z.number().min(1),
   sale_type: z.enum(["dealer", "retailer", "farmer"]),
 }).refine(
+  (value) => value.sale_type === "farmer" || Boolean(value.dealer_id?.trim()),
+  {
+    message: "Please select a dealer for this sale type.",
+    path: ["dealer_id"],
+  },
+).refine(
   (value) => value.sale_type !== "retailer" || Boolean(value.retailer_id?.trim()),
   {
     message: "Please select a retailer for retailer sales.",

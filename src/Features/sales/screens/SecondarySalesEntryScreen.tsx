@@ -195,6 +195,7 @@ export default function SecondarySalesEntryScreen() {
         onChange={setLines}
         showPackSize
         manualQuantity
+        allowDuplicateProducts
       />
 
       <View style={styles.totalCard}>

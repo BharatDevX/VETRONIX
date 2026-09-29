@@ -401,3 +401,84 @@ export async function generateMonthlyMeetingPlanPdf(params: {
     "Share Monthly Meeting Plan PDF",
   );
 }
+
+export async function generateEmployeeOrderFormPdf(params: {
+  employeeName: string;
+  order: {
+    orderNumber: string;
+    saleDate: string;
+    saleType: string;
+    hq: string;
+    dealerName: string;
+    retailerName: string;
+    farmerName: string;
+    totalAmount: number;
+    lines: Array<{
+      productName: string;
+      packSize: string;
+      boxCount: number;
+      quantity: number;
+      rate: number;
+      amount: number;
+    }>;
+  };
+}) {
+  const { employeeName, order } = params;
+  const saleTypeLabel = order.saleType === "farmer" ? "Farmer Sale" : order.saleType === "retailer" ? "Retailer Sale" : "Dealer Sale";
+  const partyFields = order.saleType === "farmer"
+    ? `<div class="cell"><div class="label">Farmer</div><div class="value">${displayValue(order.farmerName)}</div></div>
+       <div class="cell last"><div class="label">Dealer</div><div class="value">${displayValue(order.dealerName)}</div></div>`
+    : order.saleType === "retailer"
+      ? `<div class="cell"><div class="label">Retailer</div><div class="value">${displayValue(order.retailerName)}</div></div>
+         <div class="cell last"><div class="label">Dealer</div><div class="value">${displayValue(order.dealerName)}</div></div>`
+      : `<div class="cell"><div class="label">Dealer</div><div class="value">${displayValue(order.dealerName)}</div></div>
+         <div class="cell last"><div class="label">Party</div><div class="value">Dealer Sale</div></div>`;
+
+  const rows = order.lines.map((line, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${displayValue(line.productName)}</td>
+      <td>${displayValue(line.packSize)}</td>
+      <td>${displayValue(line.boxCount, "0")}</td>
+      <td>${displayValue(line.quantity, "0")}</td>
+      <td>₹${Number(line.rate ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+      <td>₹${Number(line.amount ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+    </tr>`).join("");
+
+  const body = `
+    <div class="section">
+      <div class="section-title">Order Details</div>
+      <div class="grid">
+        <div class="grid-row">
+          <div class="cell"><div class="label">Employee</div><div class="value">${displayValue(employeeName)}</div></div>
+          <div class="cell last"><div class="label">Order Number</div><div class="value">${displayValue(order.orderNumber)}</div></div>
+        </div>
+        <div class="grid-row">
+          <div class="cell"><div class="label">Order Date</div><div class="value">${displayValue(order.saleDate)}</div></div>
+          <div class="cell last"><div class="label">Sale Type</div><div class="value">${displayValue(saleTypeLabel)}</div></div>
+        </div>
+        <div class="grid-row">
+          <div class="cell"><div class="label">Head Quarter</div><div class="value">${displayValue(order.hq)}</div></div>
+          <div class="cell last"><div class="label">Total Medicines</div><div class="value">${order.lines.length}</div></div>
+        </div>
+        <div class="grid-row">${partyFields}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Medicines</div>
+      <table class="table-small">
+        <thead><tr><th>#</th><th>Medicine</th><th>Pack Size</th><th>Boxes</th><th>Quantity</th><th>Rate</th><th>Amount</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7">No medicines recorded.</td></tr>'}</tbody>
+      </table>
+      <div class="field" style="text-align:right; margin-top:10px; border-top:2px solid #DCE8E1;">
+        <div class="label">Total Order Amount</div>
+        <div class="value" style="font-size:16px;font-weight:700;">₹${Number(order.totalAmount ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</div>
+      </div>
+    </div>`;
+
+  return createAndSharePdf(
+    page("Order Form", "Employee order form", body),
+    "Share Order Form PDF",
+  );
+}

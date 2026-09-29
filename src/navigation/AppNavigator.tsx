@@ -1,4 +1,6 @@
 import React from "react";
+// Load the native background-location task definition at app startup.
+import "../services/location/LocationTrackingService";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
@@ -12,6 +14,7 @@ import DoctorVisitScreen from "../Features/doctor/screens/DoctorVisitScreen";
 import DealerMeetingPlanScreen from "../Features/dealer/screens/DealerMeetingPlanScreen";
 import DealerVisitScreen from "../Features/dealer/screens/DealerVisitScreen";
 import SalesEntryScreen from "../Features/sales/screens/SalesEntryScreen";
+import OrderFormHistoryScreen from "../Features/sales/screens/OrderFormHistoryScreen";
 import SalesInvoiceEntryScreen from "../Features/sales/screens/SalesInvoiceEntryScreen";
 import CounterSaleEntryScreen from "../Features/sales/screens/CounterSaleEntryScreen";
 import DoctorWiseSaleEntryScreen from "../Features/sales/screens/DoctorWiseSaleEntryScreen";
@@ -49,6 +52,7 @@ export type RootStackParamList = {
   DealerVisit: undefined;
 EmployeeProfile: undefined;
 SalesEntry: undefined;
+OrderFormHistory: undefined;
 SalesInvoiceEntry: undefined;
 CounterSaleEntry: undefined;
 DoctorWiseSaleEntry: undefined;
@@ -145,6 +149,10 @@ export default function AppNavigator() {
 <Stack.Screen
     name="SalesEntry"
     component={SalesEntryScreen}
+/>
+<Stack.Screen
+    name="OrderFormHistory"
+    component={OrderFormHistoryScreen}
 />
 <Stack.Screen
     name="SalesInvoiceEntry"

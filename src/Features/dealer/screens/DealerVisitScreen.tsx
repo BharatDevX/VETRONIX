@@ -76,7 +76,21 @@ export default function DealerVisitScreen() {
     try {
       const result = await save(form);
       if (result?.data?.id && form.next_followup_date && !result?.isLocal) {
-        await scheduleFollowUpReminder({ visitId: result.data.id, visitType: "Dealer", partyName: form.dealer_name || "Dealer", followUpDate: form.next_followup_date });
+        try {
+          await scheduleFollowUpReminder({
+            visitId: result.data.id,
+            visitType: "Dealer",
+            partyName: form.dealer_name || "Dealer",
+            followUpDate: form.next_followup_date,
+          });
+        } catch (notificationError) {
+          console.log(
+            "[Dealer Visit] Follow-up reminder scheduling failed:",
+            notificationError
+          );
+          // The visit has already been saved successfully.
+          // A notification failure must not make the visit appear unsaved.
+        }
       }
       Alert.alert("Success", result?.isUpdate ? "Existing record updated successfully." : "Saved successfully.");
       setForm(initialForm());

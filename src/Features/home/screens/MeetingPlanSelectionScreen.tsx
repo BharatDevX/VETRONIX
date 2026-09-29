@@ -14,6 +14,7 @@ import { useAuthStore } from "../../auth/store/auth.store";
 import { useMasters } from "../../master/hooks/useMasters";
 import { supabase } from "../../../services/supabase/supabase";
 import { generateMonthlyMeetingPlanPdf } from "../../../services/pdf/pdf.service";
+import { getLocalActivities } from "../../../services/local/localParty.service";
 
 type Props = NativeStackScreenProps<RootStackParamList, "MeetingPlan">;
 type MeetingPlanType = "doctor" | "dealer" | "farmer";
@@ -33,19 +34,141 @@ export default function MeetingPlanSelectionScreen({ navigation }: Props) {
       let records: any[] = [];
 
       if (planType === "doctor") {
-        const { data, error } = await supabase.from("doctor_meeting_plans").select("*").eq("employee_id", employee.id).eq("month", month).eq("year", year).order("planned_date");
+        const [{ data, error }, localPlans] = await Promise.all([
+          supabase
+            .from("doctor_meeting_plans")
+            .select("*")
+            .eq("employee_id", employee.id)
+            .eq("month", month)
+            .eq("year", year)
+            .order("planned_date"),
+          getLocalActivities(employee.id, "doctor", "meeting_plan"),
+        ]);
         if (error) throw error;
-        const map = new Map(doctors.map((d: any) => [d.id, d.doctor_name ?? ""]));
-        records = (data ?? []).map((r: any) => ({ type: "Doctor", partyName: map.get(r.doctor_id) ?? "Unknown Doctor", location: r.location ?? "", plannedDate: r.planned_date ?? "", meetingDate: r.meeting_date ?? "", discussion: r.discussion ?? "", reply: r.reply ?? "", note: "" }));
+
+        const map = new Map(
+          doctors.map((d: any) => [d.id, d.doctor_name ?? ""])
+        );
+
+        const remoteRecords = (data ?? []).map((r: any) => ({
+          type: "Doctor",
+          partyName:
+            map.get(r.doctor_id) ??
+            r.doctor_name ??
+            r.party_name ??
+            "Unknown Doctor",
+          location: r.location ?? "",
+          plannedDate: r.planned_date ?? "",
+          meetingDate: r.meeting_date ?? "",
+          discussion: r.discussion ?? "",
+          reply: r.reply ?? "",
+          note: "",
+        }));
+
+        const localRecords = localPlans.filter((r: any) => Number(r.month) === month && Number(r.year) === year).map((r: any) => ({
+          type: "Doctor",
+          partyName: r.party_name ?? r.doctor_name ?? "Unknown Doctor",
+          location: r.location ?? "",
+          plannedDate: r.planned_date ?? "",
+          meetingDate: r.meeting_date ?? r.planned_date ?? "",
+          discussion: r.discussion ?? "",
+          reply: r.reply ?? "",
+          note: r.note ?? "",
+        }));
+
+        records = [...remoteRecords, ...localRecords].sort(
+          (a, b) =>
+            dayjs(a.plannedDate).valueOf() -
+            dayjs(b.plannedDate).valueOf()
+        );
       } else if (planType === "dealer") {
-        const { data, error } = await supabase.from("dealer_meeting_plans").select("*").eq("employee_id", employee.id).eq("month", month).eq("year", year).order("planned_date");
+        const [{ data, error }, localPlans] = await Promise.all([
+          supabase
+            .from("dealer_meeting_plans")
+            .select("*")
+            .eq("employee_id", employee.id)
+            .eq("month", month)
+            .eq("year", year)
+            .order("planned_date"),
+          getLocalActivities(employee.id, "dealer", "meeting_plan"),
+        ]);
         if (error) throw error;
-        const map = new Map(dealers.map((d: any) => [d.id, d.dealer_name ?? ""]));
-        records = (data ?? []).map((r: any) => ({ type: "Dealer", partyName: map.get(r.dealer_id) ?? "Unknown Dealer", location: r.location ?? "", plannedDate: r.planned_date ?? "", meetingDate: r.meeting_date ?? "", discussion: r.discussion ?? "", reply: "", note: "" }));
+
+        const map = new Map(
+          dealers.map((d: any) => [d.id, d.dealer_name ?? ""])
+        );
+
+        const remoteRecords = (data ?? []).map((r: any) => ({
+          type: "Dealer",
+          partyName:
+            map.get(r.dealer_id) ??
+            r.dealer_name ??
+            r.party_name ??
+            "Unknown Dealer",
+          location: r.location ?? "",
+          plannedDate: r.planned_date ?? "",
+          meetingDate: r.meeting_date ?? "",
+          discussion: r.discussion ?? "",
+          reply: "",
+          note: "",
+        }));
+
+        const localRecords = localPlans.filter((r: any) => Number(r.month) === month && Number(r.year) === year).map((r: any) => ({
+          type: "Dealer",
+          partyName: r.party_name ?? r.dealer_name ?? "Unknown Dealer",
+          location: r.location ?? "",
+          plannedDate: r.planned_date ?? "",
+          meetingDate: r.meeting_date ?? r.planned_date ?? "",
+          discussion: r.discussion ?? "",
+          reply: "",
+          note: r.note ?? "",
+        }));
+
+        records = [...remoteRecords, ...localRecords].sort(
+          (a, b) =>
+            dayjs(a.plannedDate).valueOf() -
+            dayjs(b.plannedDate).valueOf()
+        );
       } else {
-        const { data, error } = await supabase.from("farmer_meeting_plans").select("*").eq("employee_id", employee.id).eq("month", month).eq("year", year).order("planned_date");
+        const [{ data, error }, localPlans] = await Promise.all([
+          supabase
+            .from("farmer_meeting_plans")
+            .select("*")
+            .eq("employee_id", employee.id)
+            .eq("month", month)
+            .eq("year", year)
+            .order("planned_date"),
+          getLocalActivities(employee.id, "farmer", "meeting_plan"),
+        ]);
         if (error) throw error;
-        records = (data ?? []).map((r: any) => ({ type: "Farmer", partyName: r.farmer_name ?? "", location: r.location ?? "", plannedDate: r.planned_date ?? "", meetingDate: r.meeting_date ?? "", discussion: "", reply: "", note: r.note ?? "" }));
+
+        const remoteRecords = (data ?? []).map((r: any) => ({
+          type: "Farmer",
+          partyName: r.farmer_name ?? r.party_name ?? "",
+          location: r.location ?? "",
+          plannedDate: r.planned_date ?? "",
+          meetingDate: r.meeting_date ?? r.planned_date ?? "",
+          discussion: "",
+          reply: "",
+          note: r.note ?? "",
+        }));
+
+        const localRecords = localPlans.filter((r: any) => Number(r.month) === month && Number(r.year) === year).map((r: any) => ({
+          type: "Farmer",
+          partyName: r.party_name ?? r.farmer_name ?? "",
+          location: r.location ?? "",
+          plannedDate: r.planned_date ?? "",
+          meetingDate: r.meeting_date ?? r.planned_date ?? "",
+          discussion: "",
+          reply: "",
+          note: r.note ?? "",
+        }));
+
+        records = [...remoteRecords, ...localRecords].sort(
+          (a, b) =>
+            dayjs(a.plannedDate).valueOf() -
+            dayjs(b.plannedDate).valueOf()
+        );
       }
 
       await generateMonthlyMeetingPlanPdf({

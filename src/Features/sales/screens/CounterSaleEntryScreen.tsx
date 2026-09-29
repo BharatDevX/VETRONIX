@@ -50,7 +50,7 @@ export default function CounterSaleEntryScreen() {
           <AppDatePicker label="Sale Date" value={saleDate} onChange={setSaleDate} />
         </View>
       </AppCard>
-      <SaleLineItemsEditor products={products as any[]} lines={lines} onChange={setLines} showPackSize manualQuantity />
+      <SaleLineItemsEditor products={products as any[]} lines={lines} onChange={setLines} showPackSize manualQuantity allowDuplicateProducts />
       <View style={styles.totalCard}><Text style={styles.totalLabel}>Counter Sale Total</Text><Text style={styles.totalValue}>₹{total.toFixed(2)}</Text></View>
       <PrimaryButton title="Save Counter Sale" onPress={submit} loading={saving} disabled={saving} />
     </ScrollView>

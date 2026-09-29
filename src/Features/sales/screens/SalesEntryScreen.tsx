@@ -37,6 +37,25 @@ function createInitialForm(saleDate: string, orderNumber = "", hq = ""): SaleFor
   };
 }
 
+function getEmployeeHeadQuarters(employee: {
+  head_quarters?: string[] | null;
+  branch?: string | null;
+} | null): string[] {
+  if (!employee) return [];
+
+  return Array.from(
+    new Set(
+      [
+        ...(employee.head_quarters ?? []),
+        ...(employee.branch ? [employee.branch] : []),
+      ]
+        .flatMap((value) => String(value).split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 export default function SalesEntryScreen() {
   const { employee } = useAuthStore();
   const { dealers, retailers, products } = useMasters();
@@ -75,7 +94,8 @@ export default function SalesEntryScreen() {
           getNextOrderNumber(employee.employee_id),
         ]);
         if (!active) return;
-        const hq = String(employee.head_quarters?.[0] ?? employee.branch ?? "").trim();
+        const headQuarters = getEmployeeHeadQuarters(employee);
+        const hq = headQuarters[0] ?? "";
         setForm((current) => ({ ...current, order_number: orderNumber, hq }));
       } catch (error) {
         console.error("ORDER NUMBER/HQ LOAD ERROR:", error);
@@ -102,14 +122,15 @@ export default function SalesEntryScreen() {
 
   async function resetForm() {
     const orderNumber = employee?.employee_id ? await getNextOrderNumber(employee.employee_id) : "";
-    const hq = String(employee?.head_quarters?.[0] ?? employee?.branch ?? "").trim();
+    const headQuarters = getEmployeeHeadQuarters(employee);
+    const hq = headQuarters[0] ?? "";
     setForm(createInitialForm(dayjs().format("YYYY-MM-DD"), orderNumber, hq));
   }
 
   function validateForm(): string | null {
     if (!form.order_number.trim()) return "Please enter the order number.";
     if (!form.hq.trim()) return "Please enter the head quarter.";
-    if (!form.dealer_id?.trim()) return "Please select a dealer.";
+    if (form.sale_type !== "farmer" && !form.dealer_id?.trim()) return "Please select a dealer.";
     if (form.sale_type === "farmer" && !form.farmer_name?.trim()) return "Please select a farmer.";
     if (!form.lines.length) return "Please select at least one medicine.";
     if (form.sale_type === "retailer" && !form.retailer_id?.trim()) return "Please select a retailer for retailer sales.";
@@ -185,7 +206,17 @@ export default function SalesEntryScreen() {
           <View style={styles.sectionHeadRow}><View style={styles.accentBar} /><View style={{ flex: 1 }}><Text style={styles.cardTitle}>Sale Details</Text><Text style={styles.cardSubtitle}>Order number, head quarter, party and order date</Text></View></View>
           <View style={styles.fieldGroup}>
             <AppInput label="Order Number" placeholder="EMP001-001" value={form.order_number} editable={false} />
-            <AppSearchDropdown label="Head Quarter" data={Array.from(new Set([...(employee?.head_quarters ?? []), ...(employee?.branch ? [employee.branch] : [])])).map((headQuarter) => ({ id: headQuarter, name: headQuarter }))} labelField="name" valueField="id" value={form.hq} onChange={(item) => updateForm({ hq: item.id })} />
+            <AppSearchDropdown
+              label="Head Quarter"
+              data={getEmployeeHeadQuarters(employee).map((headQuarter) => ({
+                id: headQuarter,
+                name: headQuarter,
+              }))}
+              labelField="name"
+              valueField="id"
+              value={form.hq}
+              onChange={(item) => updateForm({ hq: item.id })}
+            />
             {form.sale_type === "retailer" && (
               <AppSearchDropdown label="Retailer" data={retailers} labelField="retailer_name" valueField="id" value={form.retailer_id} onChange={(item) => updateForm({ retailer_id: item.id })} />
             )}
@@ -216,6 +247,7 @@ export default function SalesEntryScreen() {
           lines={form.lines as SaleLineItem[]}
           onChange={(lines) => updateForm({ product_ids: lines.map((line) => line.product_id), lines })}
           showPackSize
+          allowDuplicateProducts
         />
 
         <View style={styles.submitWrap}>

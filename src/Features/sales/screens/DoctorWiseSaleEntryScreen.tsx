@@ -55,7 +55,7 @@ export default function DoctorWiseSaleEntryScreen() {
           <AppDatePicker label="Sale Date" value={saleDate} onChange={setSaleDate} />
         </View>
       </AppCard>
-      <SaleLineItemsEditor products={products as any[]} lines={lines} onChange={setLines} showPackSize manualQuantity />
+      <SaleLineItemsEditor products={products as any[]} lines={lines} onChange={setLines} showPackSize manualQuantity allowDuplicateProducts />
       <View style={styles.totalCard}><Text style={styles.totalLabel}>Doctor Sale Total</Text><Text style={styles.totalValue}>₹{total.toFixed(2)}</Text></View>
       <PrimaryButton title="Save Doctor Wise Sale" onPress={submit} loading={saving} disabled={saving} />
     </ScrollView>

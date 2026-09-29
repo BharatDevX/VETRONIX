@@ -101,6 +101,7 @@ const MENU_CATEGORIES: { title: string; items: MenuItem[] }[] = [
     title: "Order and Sales",
     items: [
       { title: "Order Form", route: "SalesEntry", icon: ShoppingCart },
+      { title: "My Order Forms", route: "OrderFormHistory", icon: FileBarChart },
       { title: "Sales", route: "SalesInvoiceEntry", icon: BadgeDollarSign },
       { title: "Counter Sales", route: "CounterSaleReport", icon: FileBarChart },
       { title: "Doctor Wise Sale", route: "DoctorWiseSalesReport", icon: Stethoscope },
